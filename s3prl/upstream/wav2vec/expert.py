@@ -32,7 +32,7 @@ class UpstreamExpert(UpstreamBase):
     def __init__(self, ckpt, **kwargs):
         super().__init__(**kwargs)
         if version.parse(fairseq.__version__) > version.parse("0.10.2"):
-            cp = torch.load(ckpt)
+            cp = torch.load(ckpt, map_location=None if torch.cuda.is_available() else torch.device("cpu"))
             args = cp["args"]
             base_wav2vec_architecture(args)
             self.model = Wav2VecModel.build_model(args, task=None)
