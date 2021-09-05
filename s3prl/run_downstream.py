@@ -188,9 +188,7 @@ def main():
     torch.backends.cudnn.benchmark = False
 
     runner = Runner(args, config)
-    command = f'runner.{args.mode}'
-    print(command)
-    eval(command)()
+    eval(f'runner.{args.mode}')()
 
 if __name__ == '__main__':
     main()

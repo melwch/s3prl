@@ -306,6 +306,8 @@ class DownstreamExpert(nn.Module):
         """
         average_acc = torch.FloatTensor(records["acc"]).mean().item()
         average_der = torch.FloatTensor(records["der"]).mean().item()
+        records["average_acc"] = average_acc
+        records["average_der"] = average_der
 
         logger.add_scalar(
             f"diarization/{mode}-acc", average_acc, global_step=global_step
@@ -313,6 +315,7 @@ class DownstreamExpert(nn.Module):
         logger.add_scalar(
             f"diarization/{mode}-der", average_der, global_step=global_step
         )
+        
         print("mode {} acc {} der {}".format(mode, average_acc, average_der))
 
         save_ckpt = []

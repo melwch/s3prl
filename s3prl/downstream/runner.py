@@ -10,7 +10,7 @@ import importlib
 import torch
 import numpy as np
 from tqdm import tqdm
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import is_initialized, get_rank, get_world_size
 
@@ -366,15 +366,25 @@ class Runner():
                 )
                 batch_ids.append(batch_id)
 
+        total_batch_num = len(dataloader)
         save_names = self.downstream.model.log_records(
             split,
             records = records,
             logger = logger,
             global_step = global_step,
             batch_ids = batch_ids,
-            total_batch_num = len(dataloader),
+            total_batch_num = total_batch_num,
         )
         batch_ids = []
+
+        summary_fn = os.path.join(self.args.expdir, "..", "summary.csv")
+        headers = not os.path.exists(summary_fn)
+        with open(summary_fn, "a") as f:
+            if headers:
+                f.write("experiment_id,average_accuracy,average_der,global_step,total_batch_num\n")
+                headers = False
+            f.write(f"{self.args.expname},{records['average_acc']},{records['average_der']},{global_step},{total_batch_num}\n")
+
         records = defaultdict(list)
 
         # prepare back to training
