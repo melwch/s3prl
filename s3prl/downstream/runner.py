@@ -48,6 +48,11 @@ class Runner():
         self.init_ckpt = torch.load(self.args.init_ckpt, map_location='cpu') if self.args.init_ckpt else {}
 
         self.upstream = self._get_upstream()
+
+        if args.verbose:
+            from utility.visualize_model import display_num_params
+            display_num_params(self.upstream.model)
+
         self.featurizer = self._get_featurizer()
         self.downstream = self._get_downstream()
         self.all_entries = [self.upstream, self.featurizer, self.downstream]

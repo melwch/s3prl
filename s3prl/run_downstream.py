@@ -28,9 +28,7 @@ def get_downstream_args():
 
     # distributed training
     parser.add_argument('--backend', default='nccl', help='The backend for distributed training')
-    parser.add_argument('--local_rank', type=int,
-                        help=f'The GPU id this process should use while distributed training. \
-                               None when not launched by torch.distributed.launch')
+    parser.add_argument('--local_rank', type=int, help=f'The GPU id this process should use while distributed training. None when not launched by torch.distributed.launch')
 
     # use a ckpt as the experiment initialization
     # if set, all the args and config below this line will be overwrited by the ckpt
@@ -138,7 +136,7 @@ def get_downstream_args():
         if args.upstream_model_config is not None and os.path.isfile(args.upstream_model_config):
             backup_files.append(args.upstream_model_config)
 
-    if args.override.lower() != "none":
+    if args.override is not None and args.override.lower() != "none":
         override(args.override, args, config)
         os.makedirs(args.expdir, exist_ok=True)
     
@@ -147,7 +145,8 @@ def get_downstream_args():
 
 def main():
     torch.multiprocessing.set_sharing_strategy('file_system')
-    torchaudio.set_audio_backend('sox_io')
+    #torchaudio.set_audio_backend('sox_io')
+    torchaudio.set_audio_backend('soundfile')
     hack_isinstance()
 
     # get config and arguments
