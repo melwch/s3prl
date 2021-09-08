@@ -42,6 +42,7 @@ class DownstreamExpert(nn.Module):
         super(DownstreamExpert, self).__init__()
         self.upstream_dim = upstream_dim
         self.upstream_rate = upstream_rate
+        
         self.datarc = downstream_expert["datarc"]
         self.loaderrc = downstream_expert["loaderrc"]
         self.modelrc = downstream_expert["modelrc"]

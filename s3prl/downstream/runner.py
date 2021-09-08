@@ -351,7 +351,7 @@ class Runner():
             split = self.args.evaluate_split
             tempdir = tempfile.mkdtemp()
             logger = SummaryWriter(tempdir)
-
+        
         # fix seed to guarantee the same evaluation protocol across steps 
         random.seed(self.args.seed)
         np.random.seed(self.args.seed)
