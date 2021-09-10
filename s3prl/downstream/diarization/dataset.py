@@ -93,10 +93,12 @@ class DiarizationDataset(Dataset):
 
         self.data = KaldiData(self.data_dir)
 
+        total_len = 0
         # make chunk indices: filepath, start_frame, end_frame
         for rec in self.data.wavs:
             data_len = int(self.data.reco2dur[rec] * rate / frame_shift)
             data_len = int(data_len / self.subsampling)
+            total_len += data_len
             if mode == "test":
                 self.chunk_indices[rec] = []
             if mode != "test":
@@ -118,10 +120,11 @@ class DiarizationDataset(Dataset):
                     )
 
         if mode != "test":
-            print(len(self.chunk_indices), " chunks")
+            print(f"{len(self.chunk_indices)} chunks, {total_len/(60*len(self.data.wavs)):,.2f} mins per chunk, {total_len / 3600:,.2f} hours")
         else:
             self.rec_list = list(self.chunk_indices.keys())
-            print(len(self.rec_list), " recordings")
+            print(f"{len(self.rec_list)} recordings, {total_len/(60*len(self.data.wavs)):,.2f} mins per recording, {total_len / 3600:,.2f} hours")
+        #exit(0)
 
     def __len__(self):
         return (
