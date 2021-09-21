@@ -11,6 +11,9 @@ The purpose of this codebase is to provide researchers a toolkit for augmenting 
 The output of the augmented speech is saved into same source format. Following sections will introduce the datasets used in the augmentation process and how to get started.
 
 ## How to use the toolkit
+1. Setup toolkit
+Refer to [INSTALL document](INSTALL.md) in this repo to install this toolkit
+
 ![alt text](data_augmentation_pipeline.jpg)
 
 ## Datasets:
