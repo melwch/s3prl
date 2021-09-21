@@ -4,7 +4,7 @@ The purpose of this codebase is to provide researchers a toolkit for augmenting 
 - change audio tempo,
 - change audio pitch,
 - stimulate room environmental noises and impulse responses,
-- performs lossy encoding stimulating audio passing through a telephony system[[1]](#1)
+- performs lossy encoding stimulating audio passing through a telephony system [<sup>[1]</sup>](#1)
 
 The output of the augmented speech is saved into same source format. Following sections will introduce the datasets used in the augmentation process and how to get started.
 
