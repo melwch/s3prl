@@ -4,21 +4,17 @@ The purpose of this codebase is to provide researchers a toolkit for augmenting 
 - change audio tempo,
 - change audio pitch,
 - stimulate room environmental noises and impulse responses,
-- performs lossy encoding stimulating audio passing through a telephony system
+- performs lossy encoding stimulating audio passing through a telephony system[[1]](#1)
 
 The output of the augmented speech is saved into same source format. Following sections will introduce the datasets used in the augmentation process and how to get started.
 
-```
-@INPROCEEDINGS{9023257,
-  author={Vu, Thi-Ly and Zeng, Zhiping and Xu, Haihua and Chng, Eng-Siong},
-  booktitle={2019 Asia-Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC)}, 
-  title={Audio Codec Simulation based Data Augmentation for Telephony Speech Recognition}, 
-  year={2019},
-  volume={},
-  number={},
-  pages={198-203},
-  doi={10.1109/APSIPAASC47483.2019.9023257}}
-```
+## References
+<a id="1">[1]</a> 
+Vu, Thi-Ly and Zeng, Zhiping and Xu, Haihua and Chng, Eng-Siong,
+Audio Codec Simulation based Data Augmentation for Telephony Speech Recognition,
+2019 Asia-Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC), 
+pp. 198-203, 
+doi: 10.1109/APSIPAASC47483.2019.9023257
 
 ## How to use the toolkit
 ![alt text](data_augmentation_pipeline.jpg)
