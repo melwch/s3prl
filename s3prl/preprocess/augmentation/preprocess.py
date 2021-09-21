@@ -127,14 +127,8 @@ if __name__ == "__main__":
         else: 
             scheme_dir += ("_" if len(scheme_dir) > 0 else "") + str(k).replace(" ", "-") + "_" + str(v)
 
-    #src = os.path.join("/media/m/F439-FA9D/", "workshop", "callhome", "callhome_data", "data", "wav")
-    #meta_src = os.path.join("/media/m/F439-FA9D/", "workshop", "callhome", "callhome_data", "data", "eval")
-    #meta_dest = os.path.join("/media/m/F439-FA9D/", "workshop", "callhome", "callhome_data", "data", "adapt")
-    
     dest_dir = os.path.join(dest, scheme_dir)
-    #if not os.path.exists(dest_dir):
-    #    os.makedirs(dest_dir)
-
+    
     src_wavs = glob(os.path.join(src, "*.wav"))
     sets = augment(src_wavs, dest_dir, 
                    distortion_config, 
@@ -147,9 +141,7 @@ if __name__ == "__main__":
 
     with open(f"make_distorted_wavs.sh", "w+") as f:
         f.write("#!/bin/bash -x\n")
-        #f.write(f"if ! [ -f \"{dest_dir}\" ]; then\n")
-        #f.write(f"\tmkdir -p \"{dest_dir}\"\nfi")
-
+        
         f.write(f"if [ -f \"{dest_dir}\" ]; then\n")
         f.write(f"\trm -rf \"{dest_dir}\"\nfi\n")
         f.write(f"mkdir -p \"{dest_dir}\"\n")
@@ -157,15 +149,7 @@ if __name__ == "__main__":
         f.write("\n\n")
         for commands in sets:
             for command in commands:
-                #f.write(f"echo \"{command}\n\n\"\n")
                 f.write(f"{command}\n")
-
-        #f.write("\n\n")
-        #for fn in glob(os.path.join(src, "*")):
-        #    f.write(f"cp \"{fn}\" \"{os.path.join(dest_dir, os.path.basename(fn))}\"\n")
-
-        #f.write("\n\n")
-        #f.write(f"cp -R \"{meta_src}\" \"{meta_dest}\"\n")
 
         f.write("\n\n")
         f.write("echo \"Completed!\"")
