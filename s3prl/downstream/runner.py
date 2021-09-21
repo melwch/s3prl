@@ -13,7 +13,8 @@ import torch
 import torchaudio
 import numpy as np
 from tqdm import tqdm
-from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
+from torch.utils.data import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import is_initialized, get_rank, get_world_size
 
