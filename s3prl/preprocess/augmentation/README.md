@@ -6,7 +6,7 @@ The purpose of this codebase is to provide researchers a toolkit for augmenting 
 - change audio tempo,
 - change audio pitch,
 - stimulate room environmental noises and impulse responses,
-- performs lossy encoding stimulating audio passing through a telephony system [<sup>[3]</sup>](#3)
+- performs lossy encoding, stimulating audio passing through a telephony system [<sup>[3]</sup>](#3)
 
 The output of the augmented speech is saved into same source format. Following sections will introduce the datasets used in the augmentation process and how to get started.
 
@@ -14,6 +14,18 @@ The output of the augmented speech is saved into same source format. Following s
 1. Setup toolkit
 Refer to [INSTALL document](INSTALL.md) in this repo to install this toolkit
 
+2. Configure toolkit
+Refer to [figure 1](#fig1) the overview of the pipeline design. In this toolkit, multiple configuration and data files are used to customize the toolkit:
+- [config.conf](config.conf)
+Main configuration file to enable/disable components in the pipeline and set the required parameters for each components.
+- [distortion_codecs.conf](codecs.info)
+This file contains specific codecs used in generating the lossly audio passing through a stimulated telephony system
+- [codecs.info](codecs.info)
+This file contains the mapping from Soundfile library codec format string to ffmpeg codec ID and is used to define the required codecs in generated ffmpeg commands.
+- [codecs_for_torch.info](codecs.info)
+This file contains the mapping from Soundfile library codec format string to TorchAudio codec ID and is used to define the required codecs to export/save processed audio.
+
+<a id="fig1">[Figure 1: Data Augmentation Pipeline]</a>
 ![alt text](data_augmentation_pipeline.jpg)
 
 ## Datasets:
