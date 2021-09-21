@@ -142,6 +142,7 @@ if __name__ == "__main__":
                    reverdb_dir=reverdb_dir,
                    noise_dir=noise_dir,
                    python_command=python_command,
+                   info_fn="cocktail.json",
                    verbose=args.verbose)
 
     with open(f"make_distorted_wavs.sh", "w+") as f:
@@ -169,4 +170,5 @@ if __name__ == "__main__":
         f.write("\n\n")
         f.write("echo \"Completed!\"")
 
-    print("Preprocessing completed!")
+    print("Preprocessing completed!\n\n")
+    print('\n\nCheck out "cocktail.json" the actual augmentation methods and settings used on each source audio file\n\n')

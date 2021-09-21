@@ -286,13 +286,14 @@ def augment(dataset, dest_dir,
             reverdb_dir="reverdb",
             python_command="python",
             noise_dir="noise",
+            info_fn="cocktail.json",
             verbose=False):
     import os, random
     import json
 
     from pathlib import Path
     parent_dir = Path(dest_dir).parents[1]
-    dest_info_fn = os.path.join(parent_dir, "cocktail.json")
+    dest_info_fn = os.path.join(parent_dir, info_fn)
 
     info = {}
     with open(dest_info_fn, "w+") as f:

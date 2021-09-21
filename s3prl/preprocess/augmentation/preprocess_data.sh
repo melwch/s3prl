@@ -20,3 +20,4 @@ python3 preprocess.py --verbose "$DATA_DIR" "$DEST_DIR" "config/config.conf"
 chmod +x make_distorted_wavs.sh
 ./make_distorted_wavs.sh
 rm make_distorted_wavs.sh
+echo $'\n\nCheck out "cocktail.json" the actual augmentation methods and settings used on each source audio file\n\n'
