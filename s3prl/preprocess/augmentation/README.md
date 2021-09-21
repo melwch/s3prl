@@ -42,7 +42,10 @@ This toolkit is designed to operate in Linux environment and has been tested to 
 
 4. Collect the augmented audio in your target directory :sunglasses:
 
-<a id="fig1">![alt text](data_augmentation_pipeline.jpg)*<p align="center">**Figure 1:** Data Augmentation Pipeline<p>*</a>
+5. Trace the actual augmentation operations on each source audio file
+The toolkit generates a *cocktail.json* log file that details the actual components and settings used to augment each source audio file.
+
+<a id="fig1">![alt text](others/data_augmentation_pipeline.jpg)*<p align="center">**Figure 1:** Data Augmentation Pipeline<p>*</a>
 
 ## Datasets:
 - ### [BUT Speech@FIT Reverb Database](https://speech.fit.vutbr.cz/software/but-speech-fit-reverb-database ) [<sup>[4]</sup>](#4):

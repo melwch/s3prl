@@ -19,10 +19,10 @@ if __name__ == "__main__":
     reverdb_dir = "reverdb"
     noise_dir = "noise"
     distortion_config = "distortion_codecs.conf"
-    scheme = { "noise": { 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A','B'], 'ntypes': 1 },
+    scheme = { "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
                "speed": 1.,
                "pitch": 1.,
-               "rir": {'mode': 'small room', 'id': 1, 'mixing_level': 80},
+               "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1},
                "distortions": [.2, .2, .2],
                "number of codecs mixture": 1 }
     if os.path.exists(args.config):
@@ -48,6 +48,9 @@ if __name__ == "__main__":
                     elif key == "NOISE_DIR":
                         noise_dir = value
                         #assert os.path.exists(noise_dir), "Please provide NOISE_DIR with valid folder location"
+                    elif key == "NOISE_APPLICATION_MODE":
+                        scheme['noise']['mode'] = int(value)
+                        assert scheme['noise']['mode'] == 0 or scheme['noise']['mode'] == 1, "Please provide NOISE_APPLICATION_MODE 0 or 1" 
                     elif key == "SPEED_PERTURBATION":
                         scheme['speed'] = float(value)
                         assert scheme['speed'] >= 0.5 and scheme['speed'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
@@ -101,11 +104,11 @@ if __name__ == "__main__":
         parser.print_help()
         exit(1)
 
-    if not os.path.exists(noise_dir):
+    if not os.path.exists(noise_dir) or len(glob(os.path.join(noise_dir, '*.wav'))) == 0:
         print("Required noise files not available, downloading...")
         download_and_extract_musan(noise_dir)
 
-    if not os.path.exists(reverdb_dir):
+    if not os.path.exists(reverdb_dir) or len(glob(os.path.join(reverdb_dir, '*.wav'))) == 0:
         print("Required BUT_ReverbDB not available, downloading...")
         download_and_extract_BUT_Speech(reverdb_dir)
 

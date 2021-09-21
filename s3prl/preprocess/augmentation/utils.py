@@ -8,11 +8,12 @@ def wada_snr(wav):
     # https://gist.github.com/johnmeade/d8d2c67b87cda95cd253f55c21387e75
     #
     # MIT license, John Meade, 2020
+    import os
     import numpy as np
     
     snr = float("inf")
 
-    fn = 'snr.csv'
+    fn = os.path.join('config', 'snr.csv')
     g_vals = None
     try:
         with open(fn, 'r') as f:
@@ -71,18 +72,19 @@ def glob_re(path):
     return [os.path.join(dirname, fn) for fn in filter(re.compile(basename).match, os.listdir(dirname))]
 
 def get_audio_info(wav_fn, verbose=False):
+    import os
     import soundfile as sf
     wav_info = sf.info(wav_fn)
 
     codecs = {}
-    with open("codecs.info", "r") as f:
+    with open(os.path.join("config", "codecs.info"), "r") as f:
         lines = f.readlines()
         for line in lines:
             [key, value] = line.strip().split("=")
             codecs[key] = value
 
     codecs_torch = {}
-    with open("codecs_for_torch.info", "r") as f:
+    with open(os.path.join("config", "codecs_for_torch.info"), "r") as f:
         lines = f.readlines()
         for line in lines:
             [key, value] = line.strip().split("=")
@@ -128,7 +130,7 @@ def show_progress(block_num, block_size, total_size):
     
     global pbar   
     if pbar is None:
-        pbar = tqdm(total=total_size)
+        pbar = tqdm(total=total_size, desc="Download file")
 
     downloaded = block_num * block_size
     if downloaded < total_size:
@@ -158,20 +160,15 @@ def download_file(destination: str, source: str):
     return destination
 
 def copy_and_rename(file_path: str, noise_dir: str):
+    from glob import glob
+    from tqdm import tqdm
     import os, shutil
 
-    wavelist = []
-    filenames=os.listdir(file_path)
-    for filename in filenames:
-        _, format = os.path.splitext(os.path.join(file_path, filename))
-        if format == '.wav':  
-            wavelist.append(filename)
-
     step = 1
-    for file in wavelist:
-        f_src = os.path.join(file_path, 'sound-bible', file)
+    for f_src in tqdm(glob(os.path.join(file_path, "*.wav")), desc=f"Move file to {os.path.basename(noise_dir)}"):
+        #f_src = os.path.join(file_path, file)
         fname = '_'.join(os.path.basename(f_src).split('.')[:-1])
-        f_dst = os.path.join(file_path, noise_dir, f'{step}_{fname}.wav')
+        f_dst = os.path.join(noise_dir, f'{step}_{fname}.wav')
         if os.path.exists(f_dst):
             print("File exist:", f_dst)
         else:
@@ -193,10 +190,10 @@ def download_and_extract_musan(data_root: str):
     logging.info(f"Getting {data_set}")
     download_file(file_path, URL)
     logging.info(f"Extracting {data_set}")
-    extract_file(file_path, download_musan_noise_dir)
+    extract_file(file_path, data_root)
     
-    copy_and_rename(os.path.join(download_musan_noise_dir, 'free-sound'), data_root)
-    copy_and_rename(os.path.join(download_musan_noise_dir, 'sound-bible'), data_root)
+    copy_and_rename(os.path.join(download_musan_noise_dir, 'noise', 'free-sound'), data_root)
+    copy_and_rename(os.path.join(download_musan_noise_dir, 'noise', 'sound-bible'), data_root)
 
     shutil.rmtree(download_musan_noise_dir, ignore_errors=False, onerror=None)
 
@@ -216,7 +213,7 @@ def download_and_extract_BUT_Speech(data_root: str):
     logging.info(f"Getting {data_set}")
     download_file(file_path, URL)
     logging.info(f"Extracting {data_set}")
-    extract_file(file_path, download_rir_dir)
+    extract_file(file_path, data_root)
       
     print('Processing BUT_ReverbDB dataset...')
     
@@ -230,14 +227,17 @@ def download_and_extract_BUT_Speech(data_root: str):
                  'VUT_FIT_C236', 
                  'VUT_FIT_D105']
     jobs = []
+    rooms = []
     for i in range(9):
         print("Moving", Room_name[i])
-        speaker_name = os.listdir(os.path.join(data_root, Room_name[i], 'MicID01'))
+        room_dir = os.path.join(data_root, Room_name[i])
+        rooms.append(room_dir)
+        speaker_name = os.listdir(os.path.join(room_dir, 'MicID01'))
 
         for j in range(len(speaker_name)):
             position_name = []
-            for lists in os.listdir(os.path.join(data_root, Room_name[i], 'MicID01', speaker_name[j])):
-                sub_path = os.path.join(data_root, Room_name[i], 'MicID01', speaker_name[j], lists)
+            for lists in os.listdir(os.path.join(room_dir, 'MicID01', speaker_name[j])):
+                sub_path = os.path.join(room_dir, 'MicID01', speaker_name[j], lists)
 
                 if os.path.isdir(sub_path):
                     position_name.append(sub_path)
@@ -251,8 +251,11 @@ def download_and_extract_BUT_Speech(data_root: str):
                 shutil.copyfile(src, dest)
                 jobs.append((src, dest))
 
-    for src, dest in tqdm(jobs):
+    for src, dest in tqdm(jobs, desc=f"Copy file to {os.path.basename(os.path.split(dest)[0])}"):
         print(f"Copy from {src} to {dest}")
         shutil.copyfile(src, dest)
 
     shutil.rmtree(download_rir_dir, ignore_errors=False, onerror=None)
+    for room in rooms:
+        if os.path.exists(room):
+            shutil.rmtree(room, ignore_errors=False, onerror=None)

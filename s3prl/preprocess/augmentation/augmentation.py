@@ -34,7 +34,9 @@ def mix_rir_package(destination: str, source: str):
                 shutil.copyfile(rir_wav_path, dest_path)
                 step = step + 1
 
-def add_noise(command, src_file, dest_file, info={}, config:dict=None, noise_source=None, python_command="python"):
+def add_noise(command, src_file, dest_file, info={}, 
+              config:dict={ 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 }, 
+              noise_source=None, python_command="python"):
     from glob import glob
     import random
     import os
@@ -77,11 +79,13 @@ def add_noise(command, src_file, dest_file, info={}, config:dict=None, noise_sou
             noise_fns.append(fname)
         info['snr'] = snr
         info['snr'] = noise_fns
-        command += f'\n{python_command} addnoise.py -s {snr} "{",".join(noise_fns)}" "{src_file}" "{dest_file}"\n'
+        command += f'\n{python_command} addnoise.py -s {snr} {config["mode"]} "{",".join(noise_fns)}" "{src_file}" "{dest_file}"\n'
         
     return command
 
-def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="reverdb", config:dict=None, verbose=False):
+def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="reverdb", 
+            config:dict={'mode': 'RAW', 'id': 0, 'mixing_level': -1}, 
+            verbose=False):
     import os, random
     from utils import glob_re
     from glob import glob
@@ -160,10 +164,10 @@ def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="re
 
 def mix_cocktail(src_dir, dest_dir, 
                  codecs, info={}, 
-                 scheme={ "noise": { 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A','B'], 'ntypes': 1 },
+                 scheme={ "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
                           "speed": 1.,
                           'pitch': 1.,
-                          "rir": {'mode': 'small room', 'id': 1, 'mixing_level': 80},
+                          "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1},
                           "number of codecs mixture": 1 }, 
                  reverdb_dir="reverdb",
                  noise_dir="noise",
@@ -189,7 +193,6 @@ def mix_cocktail(src_dir, dest_dir,
             command = add_noise(command, wav_fn, path, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command)
             wav_fn = path
 
-        pipe = False
         output_format = wav_info.format.lower()
         perturbation = None
         if 'speed' in scheme:
@@ -274,10 +277,10 @@ def mix_cocktail(src_dir, dest_dir,
 
 def augment(dataset, dest_dir, 
             config, 
-            scheme={ "noise": { 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A','B'] },
+            scheme={ "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
                      "speed": 1.,
                      "pitch": 1.,
-                     "rir": {'mode': 'small room', 'id': 1, 'mixing_level': 80},
+                     "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1},
                      "distortions": [.2, .2, .2],
                      "number of codecs mixture": 1 }, 
             reverdb_dir="reverdb",

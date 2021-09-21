@@ -16,7 +16,7 @@ if [ -f $script_file ]; then
 fi
 
 #echo "python3 preprocess.py "$DATA_DIR/wav" "$DATA_DIR/adapt" "config.conf" --verbose"
-python3 preprocess.py --verbose "$DATA_DIR" "$DEST_DIR" "config.conf"
+python3 preprocess.py --verbose "$DATA_DIR" "$DEST_DIR" "config/config.conf"
 chmod +x make_distorted_wavs.sh
 ./make_distorted_wavs.sh
 rm make_distorted_wavs.sh
