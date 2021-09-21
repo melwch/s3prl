@@ -1,0 +1,3 @@
+U-Law=pcm_mulaw
+A-Law=pcm_mualaw
+Signed 16 bit PCM=pcm_s16le

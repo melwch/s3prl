@@ -1,0 +1,5 @@
+U-Law=ULAW
+A-Law=ALWA
+Signed 16 bit PCM=PCM_S
+Unsigned 16 bit PCM=PCM_U
+Floating point 16 bit PCM=PCM_F
