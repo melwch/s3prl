@@ -6,6 +6,7 @@ if __name__ == "__main__":
     import argparse
     from glob import glob
     from augmentation import augment
+    from utils import download_and_extract_musan, download_and_extract_BUT_Speech
 
     parser = argparse.ArgumentParser()
     parser.add_argument("src", help="source wave files")
@@ -28,8 +29,8 @@ if __name__ == "__main__":
         with open(args.config, "r") as f:
             lines = f.readlines()
             for line in lines:
-                if args.verbose:
-                    print(line)
+                #if args.verbose:
+                #    print(line)
                 if not line.startswith('#'):
                     [key, value] = line.strip().split("=")
                     if key == "PYTHON_COMMAND":
@@ -46,7 +47,7 @@ if __name__ == "__main__":
                         assert scheme['noise']['id'] == 0 and scheme['noise']['ntypes'] > 0, "Please provide number of types greater than 1"                    
                     elif key == "NOISE_DIR":
                         noise_dir = value
-                        assert os.path.exists(noise_dir), "Please provide NOISE_DIR with valid folder location"
+                        #assert os.path.exists(noise_dir), "Please provide NOISE_DIR with valid folder location"
                     elif key == "SPEED_PERTURBATION":
                         scheme['speed'] = float(value)
                         assert scheme['speed'] >= 0.5 and scheme['speed'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
@@ -80,7 +81,7 @@ if __name__ == "__main__":
                         assert os.path.exists(distortion_config), "Please provide DISTORTION_CONFIG_FILE with valid configuration file"
                     elif key == "REVERDB_DIR":
                         reverdb_dir = value
-                        assert os.path.exists(reverdb_dir), "Please provide REVERDB_DIR with valid folder location"
+                        #assert os.path.exists(reverdb_dir), "Please provide REVERDB_DIR with valid folder location"
     else:
         print("Configuration file does not exists", args.config)
         parser.print_help()
@@ -100,6 +101,13 @@ if __name__ == "__main__":
         parser.print_help()
         exit(1)
 
+    if not os.path.exists(noise_dir):
+        print("Required noise files not available, downloading...")
+        download_and_extract_musan(noise_dir)
+
+    if not os.path.exists(reverdb_dir):
+        print("Required BUT_ReverbDB not available, downloading...")
+        download_and_extract_BUT_Speech(reverdb_dir)
 
     #(minor distortion percentage, 
     # medium distortion percentage, 

@@ -1,19 +1,20 @@
 # Data Augmentation Toolkit
+One of the key ingredients to develop a high performing DNN model is to train your model using augmented data [<sup>[1]</sup>](#1)[<sup>[2]</sup>](#2). 
+
 The purpose of this codebase is to provide researchers a toolkit for augmenting speech audio data for model training purposes. The toolkit builds on the proposed technique published in the paper "Audio Codec Simulation based Data Augmentation for Telephony Speech Recognition" and extends it into a full configurable pipeline that is capable of:
 - introducing background noises into speech segments, 
 - change audio tempo,
 - change audio pitch,
 - stimulate room environmental noises and impulse responses,
-- performs lossy encoding stimulating audio passing through a telephony system [<sup>[1]</sup>](#1)
+- performs lossy encoding stimulating audio passing through a telephony system [<sup>[3]</sup>](#3)
 
 The output of the augmented speech is saved into same source format. Following sections will introduce the datasets used in the augmentation process and how to get started.
 
 ## How to use the toolkit
 ![alt text](data_augmentation_pipeline.jpg)
 
-## Noise and RIR dataset description:
-
-- ### [BUT Speech@FIT Reverb Database](https://speech.fit.vutbr.cz/software/but-speech-fit-reverb-database ):
+## Datasets:
+- ### [BUT Speech@FIT Reverb Database](https://speech.fit.vutbr.cz/software/but-speech-fit-reverb-database ) [<sup>[4]</sup>](#4):
 
   The database is being built with respect to collect a large number of various Room Impulse Responses, Room environmental noises (or "silences"), Retransmitted speech (for ASR and SID testing), and meta-data (positions of microphones, speakers etc.).
 
@@ -33,51 +34,8 @@ The output of the augmented speech is saved into same source format. Following s
   |   VUT_FIT_D105   |   D105    |  Lecture room   |     Large      |          17.2x22.8x6.9           |                31 x 6                |
   |   VUT_FIT_C236   |   C236    |  Meeting room   |     Medium      |           7.0x4.1x3.6            |               31 x 10                |
 
-  ```
-  @ARTICLE{8717722,
-           author={Szöke, Igor and Skácel, Miroslav and Mošner, Ladislav and Paliesek, Jakub and Černocký, Jan},
-           journal={IEEE Journal of Selected Topics in Signal Processing}, 
-           title={Building and evaluation of a real room impulse response dataset}, 
-           year={2019},
-           volume={13},
-           number={4},
-           pages={863-876},
-           doi={10.1109/JSTSP.2019.2917582}
-   }
-  ```
-
-- ### [MUSAN database](https://arxiv.org/pdf/1510.08484):
-
-  The database consists of music from several genres, speech from twelve languages, and a wide assortment of technical and non-technical noises and we only use the noise data in this database. Citation details are as follows.
-
-  ```
-  @misc{snyder2015musan,
-        title={MUSAN: A Music, Speech, and Noise Corpus}, 
-        author={David Snyder and Guoguo Chen and Daniel Povey},
-        year={2015},
-        eprint={1510.08484},
-        archivePrefix={arXiv},
-        primaryClass={cs.SD}
-  }
-  ```
-
-## Instruction for using the following data-processing code:
-
-1. **mix_cleanaudio_with_rir_offline.py**: Generate far-field speech offline
-
-   - two parameters are needed: 
-     - **--data_root**: the data path which you want to download and store the RIR dataset in.
-     - **--clean_data_list_path:** the path of the folder in which  **'training_list.txt', 'validation_list.txt', 'testing_list.txt'** are stored in
-
-   - 2 folders will be created in data_root: 'ReverDB_data (Removable if needed)', 'ReverDB_mix'
-
-     
-
-2. **download_and_extract_noise_file.py**: Generate musan noise file
-
-   - one parameters are needed: 
-     - **--data_root**: the data path which you want to download and store the noise dataset in.
-   - 2 folder will be created in data_root: 'musan (Removable if needed)', 'noise'
+- ### [MUSAN database](https://arxiv.org/pdf/1510.08484) [<sup>[5]</sup>](#5):
+  The dataset consists of music from several genres, speech from twelve languages, and a wide assortment of technical and non-technical noises. In this toolkit, only the noise subset is used.
 
 ## Special thanks to contributors
 Creation of this toolkit relied heavily on contributors providing requirements, technical insights, codebases and invaluable feedback on how to make it better for researchers. Their input are invaluable, and would like to take a moment and thank and recognize them for all their hardwork:
@@ -89,9 +47,34 @@ Creation of this toolkit relied heavily on contributors providing requirements, 
 - [Yunqi Chen](https://github.com/Jasson-Chen/Add_noise_and_rir_to_speech)
 
 ## References
-<a id="1">[1]</a> 
+<a id="1">[1]</a>
+Wei, Shengyun, Shun Zou, and Feifan Liao, 
+A Comparison on Data Augmentation Methods Based on Deep Learning for Audio Classification, 
+In Journal of Physics: Conference Series, vol. 1453, no. 1, p. 012085, 
+IOP Publishing, 
+2020
+[DOI 10.1088/1742-6596/1453/1/012085](https://iopscience.iop.org/article/10.1088/1742-6596/1453/1/012085)
+
+<a id="2">[2]</a>
+Akkaya, Ilge, Marcin Andrychowicz, Maciek Chociej, Mateusz Litwin, Bob McGrew, Arthur Petron, Alex Paino et al., 
+Solving rubik's cube with a robot hand, 
+arXiv preprint [arXiv:1910.07113](https://arxiv.org/abs/1910.07113), 2019
+
+<a id="3">[3]</a> 
 Vu, Thi-Ly and Zeng, Zhiping and Xu, Haihua and Chng, Eng-Siong,
 Audio Codec Simulation based Data Augmentation for Telephony Speech Recognition,
 2019 Asia-Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC), 
 pp. 198-203, 
-doi: 10.1109/APSIPAASC47483.2019.9023257
+[doi: 10.1109/APSIPAASC47483.2019.9023257](https://ieeexplore.ieee.org/document/9023257)
+
+<a id="4">[4]</a>
+Szöke, I., Skácel, M., Mošner, L., Paliesek, J., & Černocký, J.,
+Building and evaluation of a real room impulse response dataset, 
+IEEE Journal of Selected Topics in Signal Processing 13.4, 
+2019, 
+863-876 [arXiv:1811.06795](https://arxiv.org/abs/1811.06795)
+
+<a id="5">[5]</a>
+Snyder, David, Guoguo Chen, and Daniel Povey, 
+Musan: A music, speech, and noise corpus, 
+arXiv preprint [arXiv:1510.08484](https://arxiv.org/abs/1510.08484), 2015
