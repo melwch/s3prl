@@ -12,18 +12,18 @@ The output of the augmented speech is saved into same source format. Following s
 
 ## How to use the toolkit
 1. Setup toolkit
-Refer to [INSTALL document](INSTALL.md) in this repo to install this toolkit
+</br>Refer to [INSTALL document](INSTALL.md) in this repo to install this toolkit
 
 2. Configure toolkit
-Refer to [figure 1](#fig1) the overview of the pipeline design. In this toolkit, multiple configuration and data files are used to customize the toolkit:
+</br>Refer to [figure 1](#fig1) the overview of the pipeline design. In this toolkit, multiple configuration and data files are used to customize the toolkit:
 - [config.conf](config.conf)
-Main configuration file to enable/disable components in the pipeline and set the required parameters for each components.
+</br>Main configuration file to enable/disable components in the pipeline and set the required parameters for each components.
 - [distortion_codecs.conf](codecs.info)
-This file contains specific codecs used in generating the lossly audio passing through a stimulated telephony system
+</br>This file contains specific codecs used in generating the lossly audio passing through a stimulated telephony system
 - [codecs.info](codecs.info)
-This file contains the mapping from Soundfile library codec format string to ffmpeg codec ID and is used to define the required codecs in generated ffmpeg commands.
+</br>This file contains the mapping from Soundfile library codec format string to ffmpeg codec ID and is used to define the required codecs in generated ffmpeg commands.
 - [codecs_for_torch.info](codecs_for_torch.info)
-This file contains the mapping from Soundfile library codec format string to TorchAudio codec ID and is used to define the required codecs to export/save processed audio.
+</br>This file contains the mapping from Soundfile library codec format string to TorchAudio codec ID and is used to define the required codecs to export/save processed audio.
 
 <a id="fig1">![alt text](data_augmentation_pipeline.jpg)*<p align="center">**Figure 1:** Data Augmentation Pipeline<p>*</a>
 
