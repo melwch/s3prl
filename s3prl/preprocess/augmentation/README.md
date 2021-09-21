@@ -25,8 +25,7 @@ This file contains the mapping from Soundfile library codec format string to ffm
 - [codecs_for_torch.info](codecs_for_torch.info)
 This file contains the mapping from Soundfile library codec format string to TorchAudio codec ID and is used to define the required codecs to export/save processed audio.
 
-<a id="fig1">[Figure 1: Data Augmentation Pipeline]</a>
-![alt text](data_augmentation_pipeline.jpg)
+<a id="fig1">![alt text](data_augmentation_pipeline.jpg)*<p align="center">**Figure 1:** Data Augmentation Pipeline<p>*</a>
 
 ## Datasets:
 - ### [BUT Speech@FIT Reverb Database](https://speech.fit.vutbr.cz/software/but-speech-fit-reverb-database ) [<sup>[4]</sup>](#4):
