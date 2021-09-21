@@ -92,7 +92,7 @@ The output of the augmented speech is saved into same source format. Following s
 Creation of this toolkit relied heavily on contributors providing requirements, technical insights, codebases and invaluable feedback on how to make it better for researchers. Their input are invaluable, and would like to take a moment and thank and recognize them for all their hardwork:
 
 ### Main Contributors:
-- Prof Chng Eng Siong
+- [Assoc Prof Chng Eng Siong](https://personal.ntu.edu.sg/aseschng/intro1.html)
 
 ### Codebase Contritubors:
 - [Yunqi Chen](https://github.com/Jasson-Chen/Add_noise_and_rir_to_speech)
