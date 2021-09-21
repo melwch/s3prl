@@ -37,8 +37,8 @@ This toolkit is designed to operate in Linux environment and has been tested to 
 </br>This file contains the mapping from Soundfile library codec format string to TorchAudio codec ID and is used to define the required codecs to export/save processed audio.
 
 3. Commence augmentation
-</b>**Option 1:** Run preprocess_data.sh 
-</b>**Option 2:** Run preprocess.py and, then run the generated make_distorted_wavs.sh
+</br>**Option 1:** Run preprocess_data.sh 
+</br>**Option 2:** Run preprocess.py and, then run the generated make_distorted_wavs.sh
 
 4. Collect the augmented audio in your target directory :sunglasses:
 
