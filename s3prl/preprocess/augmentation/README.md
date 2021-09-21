@@ -10,14 +10,25 @@ The purpose of this codebase is to provide researchers a toolkit for augmenting 
 
 The output of the augmented speech is saved into same source format. Following sections will introduce the datasets used in the augmentation process and how to get started.
 
+## Requirements
+This toolkit is designed to operate in Linux environment and has been tested to work in Ubuntu 20.04. You can attempt to use this toolkit in Windows environment using WSL. If you have manage to get this toolkit work in your own OS environment not stated here, welcome to share it in the discussions section. 
+
 ## How to use the toolkit
 1. Setup toolkit
-</br>Refer to [INSTALL document](INSTALL.md) in this repo to install this toolkit
+</br>Refer to [INSTALL document](INSTALL.md) in this repo to install the dependencies and this toolkit
 
 2. Configure toolkit
 </br>Refer to [figure 1](#fig1) the overview of the pipeline design. In this toolkit, multiple configuration and data files are used to customize the toolkit:
+
+**Program Files**
+- [preprocess_data.sh](preprocess_data.sh)
+</br>A help bash script that execute the toolkit and the generated bash script to run the augmentation process
+- [preprocess.py](preprocess.py)
+</br>Main program file that reads in the configuration files and source audio files and, generates a bash script containing all the necessary commands to run the augmentation process and save the augmented audio to target directory.  
+
+**Configuration Files***
 - [config.conf](config.conf)
-</br>Main configuration file to enable/disable components in the pipeline and set the required parameters for each components.
+</br>Main configuration file to enable/disable components in the pipeline and set the required parameters for each component.
 - [distortion_codecs.conf](codecs.info)
 </br>This file contains specific codecs used in generating the lossly audio passing through a stimulated telephony system
 - [codecs.info](codecs.info)
@@ -26,6 +37,12 @@ The output of the augmented speech is saved into same source format. Following s
 </br>This file contains the mapping from Soundfile library codec format string to TorchAudio codec ID and is used to define the required codecs to export/save processed audio.
 
 <a id="fig1">![alt text](data_augmentation_pipeline.jpg)*<p align="center">**Figure 1:** Data Augmentation Pipeline<p>*</a>
+
+3. Commence augmentation
+</b>**Option 1:** Run preprocess_data.sh 
+</b>**Option 2:** Run preprocess.py and, then run the generated make_distorted_wavs.sh
+
+4. Collect the augmented audio in your target directory :sunglasses:
 
 ## Datasets:
 - ### [BUT Speech@FIT Reverb Database](https://speech.fit.vutbr.cz/software/but-speech-fit-reverb-database ) [<sup>[4]</sup>](#4):
