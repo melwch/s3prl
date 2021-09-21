@@ -20,6 +20,9 @@ The output of the augmented speech is saved into same source format. Following s
   doi={10.1109/APSIPAASC47483.2019.9023257}}
 ```
 
+## How to use the toolkit
+![alt text](data_augmentation_pipeline.jpg)
+
 ## Noise and RIR dataset description:
 
 - ### [BUT Speech@FIT Reverb Database](https://speech.fit.vutbr.cz/software/but-speech-fit-reverb-database ):
@@ -91,7 +94,7 @@ The output of the augmented speech is saved into same source format. Following s
 ## Special thanks to contributors
 Creation of this toolkit relied heavily on contributors providing requirements, technical insights, codebases and invaluable feedback on how to make it better for researchers. Their input are invaluable, and would like to take a moment and thank and recognize them for all their hardwork:
 
-### Main Contributors:
+### Technical Insights Contributors:
 - [Assoc Prof Chng Eng Siong](https://personal.ntu.edu.sg/aseschng/intro1.html)
 
 ### Codebase Contritubors:
