@@ -1,6 +1,9 @@
-# For this tool to work, you will need the full suite of FFMPEG encoders and decoders and strongly recommend to install from source.
-# Below is the incomplete ffmpeg installation receipe as there are too many dependency libraries to install
-# Follow the guide link to install ffmpeg: https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu 
+# Prerequisites
+
+- **FFMPEG**
+For this tool to work, you will need the full suite of FFMPEG encoders and decoders and strongly recommend to install from source. Follow the guide link to install ffmpeg: https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu. 
+
+Below is the incomplete ffmpeg installation receipe for Ubuntu 20.04 as there are too many dependency libraries to install:
 
 mkdir ~/ffmpeg_sources
 
