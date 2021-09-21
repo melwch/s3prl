@@ -91,6 +91,4 @@ if __name__ == "__main__":
 
                 speech_sig[start_frame:end_frame] = noise_seg + speech_seg
 
-    #print(sr, "encoding=",wav_info.codec_torch, "bits_per_sample=",wav_info.brate, min(16.0, wav_info.brate), "format=",wav_info.format)
     sf.write(args.dest_file, speech_sig.detach().numpy(), sr, sf.default_subtype(wav_info.format), wav_info.endian, format=wav_info.format)
-    #torchaudio.save(args.dest_file, speech_sig.unsqueeze(0), sr, encoding=wav_info.codec_torch, bits_per_sample=min(16.0, wav_info.brate), format=wav_info.format)

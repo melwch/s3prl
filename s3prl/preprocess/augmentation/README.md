@@ -1,5 +1,25 @@
-# Add_noise_and_rir_to_speech
-The purpose of this code base is to add a specified signal-to-noise ratio noise from MUSAN dataset to a pure speech signal and to generate far-field speech data using room impulse response data from BUT Speech@FIT Reverb Database. 
+# Data Augmentation Toolkit
+The purpose of this codebase is to provide researchers a toolkit for augmenting speech audio data for model training purposes. The toolkit builds on the proposed technique published in the paper "Audio Codec Simulation based Data Augmentation for Telephony Speech Recognition" and extends it into a full configurable pipeline that is capable of:
+- introducing background noises into speech segments, 
+- change audio tempo,
+- change audio pitch,
+- stimulate room environmental noises and impulse responses,
+- performs lossy encoding stimulating audio passing through a telephony system
+
+The output of the augmented speech is saved into same source format. Following sections will introduce the datasets used in the augmentation process and how to get started.
+
+```
+@INPROCEEDINGS{9023257,
+  author={Vu, Thi-Ly and Zeng, Zhiping and Xu, Haihua and Chng, Eng-Siong},
+  booktitle={2019 Asia-Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC)}, 
+  title={Audio Codec Simulation based Data Augmentation for Telephony Speech Recognition}, 
+  year={2019},
+  volume={},
+  number={},
+  pages={198-203},
+  doi={10.1109/APSIPAASC47483.2019.9023257}}
+```
+
 ## Noise and RIR dataset description:
 
 - ### [BUT Speech@FIT Reverb Database](https://speech.fit.vutbr.cz/software/but-speech-fit-reverb-database ):
@@ -50,25 +70,6 @@ The purpose of this code base is to add a specified signal-to-noise ratio noise 
   }
   ```
 
-  
-
-## Before using the data-processing code:
-
-- **If you do not want the original dataset to be overwritten**, please download the dataset again for use
-
-- You need to create three files: **'training_list.txt', 'validation_list.txt', 'testing_list.txt'**, based on your training, validation and test data **file paths** respectively, and ensure the audio in the file paths can be read and written. 
-
-- The content of the aforementioned **'*_list.txt'** files are in the following form:
-
-  ```
-  *_list.txt
-  	/../...../*.wav
-  	/../...../*.wav
-  	/../...../*.wav
-  ```
-
-  
-
 ## Instruction for using the following data-processing code:
 
 1. **mix_cleanaudio_with_rir_offline.py**: Generate far-field speech offline
@@ -86,74 +87,3 @@ The purpose of this code base is to add a specified signal-to-noise ratio noise 
    - one parameters are needed: 
      - **--data_root**: the data path which you want to download and store the noise dataset in.
    - 2 folder will be created in data_root: 'musan (Removable if needed)', 'noise'
-
-   
-
-3. **vad_torch.py**: Voice activity detection when adding noise to the speech
-
-   **The noise data is usually added online according to the SNR requirements, several pieces of code are provided below, please add them in the appropriate places according to your needs!**
-
-   ```python
-   import torchaudio
-   import numpy as np
-   import torch
-   import random
-   from vad_torch import VoiceActivityDetector
-   
-   
-   def _add_noise(speech_sig, vad_duration, noise_sig, snr):
-       """add noise to the audio.
-       :param speech_sig: The input audio signal (Tensor).
-       :param vad_duration: The length of the human voice (int).
-       :param noise_sig: The input noise signal (Tensor).
-       :param snr: the SNR you want to add (int).
-       :returns: noisy speech sig with specific snr.
-       """
-       if vad_duration != 0:
-           snr = 10**(snr/10.0)
-           speech_power = torch.sum(speech_sig**2)/vad_duration
-           noise_power = torch.sum(noise_sig**2)/noise_sig.shape[1]
-           noise_update = noise_sig / torch.sqrt(snr * noise_power/speech_power)
-   
-           if speech_sig.shape[1] > noise_update.shape[1]:
-               # padding
-               temp_wav = torch.zeros(1, speech_sig.shape[1])
-               temp_wav[0, 0:noise_update.shape[1]] = noise_update
-               noise_update = temp_wav
-           else:
-               # cutting
-               noise_update = noise_update[0, 0:speech_sig.shape[1]]
-   
-           return noise_update + speech_sig
-       
-       else:
-           return speech_sig
-       
-   def main():
-       # loading speech file
-       speech_file = './speech.wav'
-       waveform, sr = torchaudio.load(speech_file)
-       waveform = waveform - waveform.mean()
-       
-       # loading noise file and set snr
-       snr = 0
-       noise_file = random.randint(1, 930)
-       
-       # Voice activity detection
-       v = VoiceActivityDetector(waveform, sr)
-       raw_detection = v.detect_speech()
-       speech_labels = v.convert_windows_to_readible_labels(raw_detection)
-       vad_duration = 0
-       if not len(speech_labels) == 0:
-           for i in range(len(speech_labels)):
-               start = speech_labels[i]['speech_begin']
-               end = speech_labels[i]['speech_end']
-               vad_duration = vad_duration + end-start
-        
-        # adding noise
-        noise, _ = torchaudio.load('/notebooks/noise/' + str(noise_file) + '.wav')
-        waveform = _add_noise(waveform, vad_duration, noise, snr)
-   
-   if __name__ == '__main__':
-       main()
-   ```

@@ -198,7 +198,7 @@ def mix_cocktail(src_dir, dest_dir,
                 #if verbose:
                 print("Apply speed perturbation:", speed_perturbation)
                 info[fname]['speed_perturbation'] = speed_perturbation
-                #asetrate=44100
+                
                 if 'pitch' not in scheme and 'B' in scheme['noise']['insert']:
                     command += f"ffmpeg -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
                     wav_fn = path
