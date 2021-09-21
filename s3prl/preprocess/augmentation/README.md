@@ -8,14 +8,6 @@ The purpose of this codebase is to provide researchers a toolkit for augmenting 
 
 The output of the augmented speech is saved into same source format. Following sections will introduce the datasets used in the augmentation process and how to get started.
 
-## References
-<a id="1">[1]</a> 
-Vu, Thi-Ly and Zeng, Zhiping and Xu, Haihua and Chng, Eng-Siong,
-Audio Codec Simulation based Data Augmentation for Telephony Speech Recognition,
-2019 Asia-Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC), 
-pp. 198-203, 
-doi: 10.1109/APSIPAASC47483.2019.9023257
-
 ## How to use the toolkit
 ![alt text](data_augmentation_pipeline.jpg)
 
@@ -95,3 +87,11 @@ Creation of this toolkit relied heavily on contributors providing requirements, 
 
 ### Codebase Contritubors:
 - [Yunqi Chen](https://github.com/Jasson-Chen/Add_noise_and_rir_to_speech)
+
+## References
+<a id="1">[1]</a> 
+Vu, Thi-Ly and Zeng, Zhiping and Xu, Haihua and Chng, Eng-Siong,
+Audio Codec Simulation based Data Augmentation for Telephony Speech Recognition,
+2019 Asia-Pacific Signal and Information Processing Association Annual Summit and Conference (APSIPA ASC), 
+pp. 198-203, 
+doi: 10.1109/APSIPAASC47483.2019.9023257
