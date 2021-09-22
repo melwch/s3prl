@@ -195,7 +195,7 @@ def mix_cocktail(src_dir, dest_dir,
 
         output_format = wav_info.format.lower()
         perturbation = None
-        if 'speed' in scheme:
+        if 'speed' in scheme and scheme['speed'] != -1:
             speed_perturbation = min(100.0, max(0.5, scheme['speed']))
             if speed_perturbation != 1.0:
                 #if verbose:
@@ -209,7 +209,7 @@ def mix_cocktail(src_dir, dest_dir,
                     command += f"ffmpeg -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
                     wav_fn = "-"
 
-        if 'pitch' in scheme and scheme['pitch'] != 1.0:
+        if 'pitch' in scheme and scheme['pitch'] != -1:
             pitch_perturbation = int(wav_info.samplerate * float(max(8000.0 / wav_info.samplerate, scheme['pitch'])))
             if pitch_perturbation != wav_info.samplerate:
                 scheme['pitch'] = pitch_perturbation / wav_info.samplerate
