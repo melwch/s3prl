@@ -155,4 +155,4 @@ if __name__ == "__main__":
         f.write("echo \"Completed!\"")
 
     print("Preprocessing completed!\n\n")
-    print('\n\nCheck out "cocktail.json" the actual augmentation methods and settings used on each source audio file\n\n')
+    print('\n\nCheck out "cocktail.json" for the actual augmentation methods and settings applied on each source audio file\n\n')

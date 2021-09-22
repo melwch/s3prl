@@ -43,7 +43,7 @@ This toolkit is designed to operate in Linux environment and has been tested to 
 4. Collect the augmented audio in your target directory :sunglasses:
 
 5. Trace the actual augmentation operations on each source audio file
-The toolkit generates a *cocktail.json* log file that details the actual augmentation methods and settings used on each source audio file.
+The toolkit generates a log file, *cocktail.json*, that details the actual augmentation methods and settings applied on each source audio file.
 
 <a id="fig1">![alt text](others/data_augmentation_pipeline.jpg)*<p align="center">**Figure 1:** Data Augmentation Pipeline<p>*</a>
 
