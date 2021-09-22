@@ -76,10 +76,10 @@ def add_noise(command, src_file, dest_file, info={},
             dir, fname = os.path.split(fn)
             if len(noise_fns) == 0:
                 noise_fns.append(dir)
-            noise_fns.append(fname)
-        info['snr'] = snr
-        info['snr'] = noise_fns
-        command += f'\n{python_command} addnoise.py -s {snr} {config["mode"]} "{",".join(noise_fns)}" "{src_file}" "{dest_file}"\n'
+            noise_fns.append(fname)            
+        info['snr'] = { 'SNRs': snr, 'mode': config['mode'], 'fns': noise_fns }
+        noise_fns = ",".join(noise_fns)
+        command += f'\n{python_command} addnoise.py -s {snr} {config["mode"]} "{noise_fns}" "{src_file}" "{dest_file}"\n'
         
     return command
 
@@ -263,7 +263,11 @@ def mix_cocktail(src_dir, dest_dir,
                         print("Unknown codec specification:", ",".join(codec))
 
             if len(command) == 0:
-                command = f"cp \"{wav_fn}\" \"{path}\""
+                dir, fname = os.path.split(path)
+                format = fname.split('.')
+                fname = '_'.join(format[:-1])
+                format = format[-1]
+                command = f"cp \"{wav_fn}\" \"{os.path.join(dir, fname + '_original.' + format)}\""
             else:
                 command += f"ffmpeg -y -f {output_format} -i - -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
             commands.append(command)
@@ -321,9 +325,14 @@ def augment(dataset, dest_dir,
     random.shuffle(dataset)
     data_length = len(dataset)
     end_index = int(data_length * (1 - sum(scheme["distortions"])))
-    clean_set = dataset[:end_index]
+    clean_set = []
     print(f"Copy {len(clean_set)} clean files")
-    clean_set = [f"cp \"{src}\" \"{os.path.join(dest_dir, os.path.basename(src))}\"" for src in clean_set]
+    for src in dataset[:end_index]:
+        fname = os.path.basename(src)
+        format = fname.split('.')
+        fname = '_'.join(format[:-1])
+        format = format[-1]
+        clean_set.append(f"cp \"{src}\" \"{os.path.join(dest_dir, fname + '_original.' + format)}\"")
     distorted_sets = []
     import math
     for category, percent in zip(categories, scheme["distortions"]):
