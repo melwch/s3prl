@@ -2,3 +2,4 @@ tqdm
 torch
 torchaudio
 soundfile
+wget

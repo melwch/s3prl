@@ -116,31 +116,39 @@ def get_audio_info(wav_fn, verbose=False):
     return wav_info
 
 def extract_file(filepath: str, data_dir: str):
-    import tarfile, logging
+    import zipfile, tarfile, logging
 
     try:
-        with tarfile.open(filepath) as tar:
-            tar.extractall(data_dir)
+        if filepath.endswith('.zip'):
+            with zipfile.ZipFile(filepath, 'r') as zip:
+                zip.extractall(data_dir)
+        elif '.tar' in filepath:
+            with tarfile.open(filepath) as tar:
+                tar.extractall(data_dir)
+        else:
+            print(f'Unrecognized format "{filepath.split(".")[-1]}", skipping')
     except:
         logging.info('Not extracting. Maybe already there?')
 
 pbar=None
-def show_progress(block_num, block_size, total_size):
+def show_progress(current, total_size, width=80):
     from tqdm import tqdm
     
     global pbar   
     if pbar is None:
         pbar = tqdm(total=total_size, desc="Download file")
 
-    downloaded = block_num * block_size
-    if downloaded < total_size:
-        pbar.update(downloaded)
+    if current <= total_size:
+        pbar.update(current)
     else:
+        pbar.update(total_size)
         pbar = None
 
 def download_file(destination: str, source: str):
-    import os, logging
-    from urllib import request
+    import os, logging, sys
+    import shutil, wget
+    from tqdm import tqdm
+    #from urllib import request
 
     """
     Downloads source to destination if it doesn't exist.
@@ -152,8 +160,18 @@ def download_file(destination: str, source: str):
     """
     if not os.path.exists(destination):
         logging.info(f"{destination} does not exist. Downloading ...")
-        request.urlretrieve(source, filename=destination + '.tmp', reporthook=show_progress)
-        os.rename(destination + '.tmp', destination)
+        #request.urlretrieve(source, filename=destination + '.tmp', reporthook=show_progress)
+        dest_dir, dest = os.path.split(destination)
+        _, src_name = os.path.split(source)
+
+        def bar_custom(current, total, width=80):
+            done = int(width * current / total)
+            sys.stdout.write(f"\rDownloading {src_name}: {current / total * 100:,.2f}% [{'█' * done}{'.'* (width - done)}] ({current / (1024 * 1024):,.2f} / {total / (1024 * 1024):,.2f} MB)")
+            sys.stdout.flush()
+
+        wget.download(source, out=dest_dir, bar=bar_custom)
+        shutil.move(os.path.join(dest_dir, src_name), destination)
+        #os.rename(destination + '.tmp', destination)
         logging.info(f"Downloaded {destination}.")
     else:
         logging.info(f"Destination {destination} exists. Skipping.")
@@ -226,30 +244,36 @@ def download_and_extract_BUT_Speech(data_root: str):
                  'VUT_FIT_Q301', 
                  'VUT_FIT_C236', 
                  'VUT_FIT_D105']
+
+    room_types = { 'smallroom': ['Hotel_SkalskyDvur_Room112', 'VUT_FIT_L207', 'VUT_FIT_L227'],
+                   'mediumroom': ['VUT_FIT_L212', 'VUT_FIT_C236'],
+                   'largeroom': ['Hotel_SkalskyDvur_ConferenceRoom2', 'VUT_FIT_E112', 'VUT_FIT_Q301', 'VUT_FIT_D105'], }
+    
     jobs = []
     rooms = []
-    for i in range(9):
-        print("Moving", Room_name[i])
-        room_dir = os.path.join(data_root, Room_name[i])
-        rooms.append(room_dir)
-        speaker_name = os.listdir(os.path.join(room_dir, 'MicID01'))
+    for room_type, Room_names in room_types.items():
+        for Room_name in Room_names:
+            print("Moving", Room_name)
+            room_dir = os.path.join(data_root, Room_name)
+            rooms.append(room_dir)
+            speaker_name = os.listdir(os.path.join(room_dir, 'MicID01'))
 
-        for j in range(len(speaker_name)):
-            position_name = []
-            for lists in os.listdir(os.path.join(room_dir, 'MicID01', speaker_name[j])):
-                sub_path = os.path.join(room_dir, 'MicID01', speaker_name[j], lists)
+            for j in range(len(speaker_name)):
+                position_name = []
+                for lists in os.listdir(os.path.join(room_dir, 'MicID01', speaker_name[j])):
+                    sub_path = os.path.join(room_dir, 'MicID01', speaker_name[j], lists)
 
-                if os.path.isdir(sub_path):
-                    position_name.append(sub_path)
+                    if os.path.isdir(sub_path):
+                        position_name.append(sub_path)
 
-            for k in range(len(position_name)):
-                selected_rir_path = os.path.join(position_name[k], 'RIR')
+                for k in range(len(position_name)):
+                    selected_rir_path = os.path.join(position_name[k], 'RIR')
 
-                src = os.path.join(selected_rir_path, os.listdir(selected_rir_path)[0])
-                basis = src[len(data_root):].replace("/", "_").replace("\\", "_").split(".")[0]
-                dest = os.path.join(data_root, f"{len(jobs) + 1}_{basis}.wav")
-                shutil.copyfile(src, dest)
-                jobs.append((src, dest))
+                    src = os.path.join(selected_rir_path, os.listdir(selected_rir_path)[0])
+                    basis = src[len(data_root):].replace("/", "_").replace("\\", "_").split(".")[0]
+                    dest = os.path.join(data_root, f"{len(jobs) + 1}_{room_type}_{basis}.wav")
+                    #shutil.copyfile(src, dest)
+                    jobs.append((src, dest))
 
     for src, dest in tqdm(jobs, desc=f"Copy file to {os.path.basename(os.path.split(dest)[0])}"):
         print(f"Copy from {src} to {dest}")
@@ -259,3 +283,43 @@ def download_and_extract_BUT_Speech(data_root: str):
     for room in rooms:
         if os.path.exists(room):
             shutil.rmtree(room, ignore_errors=False, onerror=None)
+
+def download_and_extract_RIRS_NOISES(data_root: str):
+    from tqdm import tqdm
+    from glob import glob
+    import os, shutil, logging
+    
+    # download and extrat RIR files
+    data_set = 'rir_dataset'
+    URL = 'https://www.openslr.org/resources/28/rirs_noises.zip'
+
+    if len(glob(os.path.join(data_root, '*_*room_Room*-*.wav'))) > 0:
+        print("Room Impulse Response and Noise dataset exists, skipping...")
+    else:
+        download_rir_dir = os.path.join(data_root, 'rirs_noises')
+        if not os.path.exists(download_rir_dir):
+            os.makedirs(download_rir_dir)
+        
+        file_path = os.path.join(download_rir_dir, data_set + ".zip")
+        logging.info(f"Getting {data_set}")
+        download_file(file_path, URL)
+        logging.info(f"Extracting {data_set}")
+        extract_file(file_path, data_root)
+        
+        print('\nProcessing Room Impulse Response and Noise dataset...')    
+        jobs = []
+        rir_dir = os.path.abspath(os.path.join(data_root, 'RIRS_NOISES', 'simulated_rirs'))
+        step = len(glob(os.path.join(data_root, '*.wav'))) + 1
+        for rir_fn in glob(os.path.abspath(os.path.join(rir_dir, '*room', 'Room*', '*.wav'))):
+            meta_info = '_'.join(os.path.split(os.path.split(rir_fn[len(rir_dir):])[0][1:]))
+            fname = os.path.basename(rir_fn)
+            dest = os.path.join(data_root, f'{step}_{meta_info}_{fname}')
+            jobs.append((rir_fn, dest))
+            step += 1
+
+        for src, dest in tqdm(jobs, desc=f"Copy file to {os.path.basename(data_root)}"):
+            print(f"Copy from {src} to {dest}")
+            shutil.copyfile(src, dest)
+
+        shutil.rmtree(download_rir_dir, ignore_errors=False, onerror=None)
+        shutil.rmtree(os.path.join(data_root, 'RIRS_NOISES'), ignore_errors=False, onerror=None)

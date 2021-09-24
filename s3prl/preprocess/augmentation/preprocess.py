@@ -6,7 +6,7 @@ if __name__ == "__main__":
     import argparse
     from glob import glob
     from augmentation import augment
-    from utils import download_and_extract_musan, download_and_extract_BUT_Speech
+    from utils import download_and_extract_musan, download_and_extract_BUT_Speech, download_and_extract_RIRS_NOISES
 
     parser = argparse.ArgumentParser()
     parser.add_argument("src", help="source wave files")
@@ -111,6 +111,10 @@ if __name__ == "__main__":
     if not os.path.exists(reverdb_dir) or len(glob(os.path.join(reverdb_dir, '*.wav'))) == 0:
         print("Required BUT_ReverbDB not available, downloading...")
         download_and_extract_BUT_Speech(reverdb_dir)
+
+    if not os.path.exists(reverdb_dir) or len(glob(os.path.join(reverdb_dir, '*_*room_Room*-*.wav'))) == 0:
+        print("Required RIRs noises not available, downloading...")
+        download_and_extract_RIRS_NOISES(reverdb_dir)
 
     #(minor distortion percentage, 
     # medium distortion percentage, 

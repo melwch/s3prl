@@ -87,7 +87,6 @@ def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="re
             config:dict={'mode': 'RAW', 'id': 0, 'mixing_level': -1}, 
             verbose=False):
     import os, random
-    from utils import glob_re
     from glob import glob
     
     output_format = wav_info.format.lower()
@@ -126,12 +125,7 @@ def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="re
             try:
                 if rir_wav_path is None:
                     if rir_type is not None:
-                        room_type = { 'small': ['Hotel_SkalskyDvur_Room112', 'VUT_FIT_L207', 'VUT_FIT_L227'],
-                                      'medium': ['VUT_FIT_L212', 'VUT_FIT_C236'],
-                                      'large': ['Hotel_SkalskyDvur_ConferenceRoom2', 'VUT_FIT_E112', 'VUT_FIT_Q301', 'VUT_FIT_D105'], }
-                        fn = os.path.join(rir_source, r".*_("+'|'.join(room_type[rir_type])+r")_[^.]+\.wav")
-                        #print(fn)
-                        files = glob_re(fn)
+                        files = glob(os.path.join(rir_source, f'*_{rir_type}room_*.wav'))
                         rir_wav_path = random.sample(files, 1)[0]
                     else:
                         if no_id:
