@@ -19,7 +19,8 @@ if __name__ == "__main__":
     reverdb_dir = "reverdb"
     noise_dir = "noise"
     distortion_config = "distortion_codecs.conf"
-    scheme = { "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
+    scheme = { "clean": 0.5,
+               "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
                "speed": 1.,
                "pitch": 1.,
                "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1},
@@ -67,6 +68,8 @@ if __name__ == "__main__":
                                      "Please provide REVERB_MIXING_LEVEL within the range 80 and 111"
                     elif key == "REVERB_ID":
                         scheme['rir']['id'] = value
+                    elif key == "CLEAN_SET":
+                        scheme["clean"] = min(1, max(0, float(value)))
                     elif key == "MINOR_DISTORTION_PERCENTAGE":
                         scheme["minor distortion"] = float(value)
                         assert scheme["minor distortion"] >= 0.0 and scheme["minor distortion"] <= 1.0, "Please provide MINOR_DISTORTION_PERCENTAGE within the range 0.0 and 1.0"

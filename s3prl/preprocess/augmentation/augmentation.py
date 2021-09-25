@@ -157,11 +157,12 @@ def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="re
     return command, output_format
 
 def mix_cocktail(src_dir, dest_dir, 
-                 codecs, info={}, 
+                 categories, codecs_cats, info={}, 
                  scheme={ "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
                           "speed": 1.,
                           'pitch': 1.,
                           "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1},
+                          "distortions": [.2, .2, .2],
                           "number of codecs mixture": 1 }, 
                  reverdb_dir="reverdb",
                  noise_dir="noise",
@@ -169,13 +170,24 @@ def mix_cocktail(src_dir, dest_dir,
                  verbose=False):
     from utils import get_audio_info
     from glob import glob
-    import random, os
+    import random, os, math
     
     commands = []
     if isinstance(src_dir, str):
         src_dir = glob(f"{src_dir}/*.wav")
 
-    for wav_fn in src_dir:
+    #TODO: Compute the partitions
+    data_length = len(src_dir)
+    distortions = [''] * data_length
+    start_index = 0
+    end_index = 0
+    for category, percent in zip(categories, scheme["distortions"]):
+        end_index = math.ceil(min(data_length, data_length * percent + start_index))
+        if start_index < end_index:
+            distortions[start_index:end_index] = category
+            start_index = end_index
+
+    for i, wav_fn in enumerate(src_dir):
         fname = os.path.basename(wav_fn)
         fname = "".join(fname.split(".")[:-1])
         wav_info = get_audio_info(wav_fn, verbose)
@@ -236,36 +248,42 @@ def mix_cocktail(src_dir, dest_dir,
                                              rir_source=reverdb_dir, 
                                              verbose=verbose)
 
-        num_codecs = len(codecs)
-        
-        if num_codecs > 0:
-            sampled_codecs = codecs.copy()            
-            mixed_codecs_left = max(1, min(num_codecs, scheme['number of codecs mixture']))
-            while mixed_codecs_left > 0 and len(sampled_codecs) > 0:
-                codec = random.sample(sampled_codecs, 1)[0]
-                sampled_codecs.remove(codec)
-                if not codec.startswith("#"): # not commented out
-                    codec = codec.split(",")
-                    # Pipe commands to follow Kaldi style
-                    if len(codec) == 4:
-                        info[fname]["codecs"].append(codec)
-                        input_fn = '\"{wav_fn}\"' if len(command) == 0 else '-'
-                        command += f"ffmpeg -f {output_format} -i {input_fn} -c:a {codec[1]} -b:a {codec[2]} -ac 1 -ar {codec[3]} -f {codec[0]} - | "
-                        output_format = codec[0]
-                        mixed_codecs_left -= 1
-                    else:
-                        print("Unknown codec specification:", ",".join(codec))
+        saved_to_file = False
+        if distortions[i] in codecs_cats:
+            subcommand = ""
+            codecs = codecs_cats[distortions[i]]
+            num_codecs = len(codecs)        
+            if num_codecs > 0:
+                sampled_codecs = codecs.copy()            
+                mixed_codecs_left = max(1, min(num_codecs, scheme['number of codecs mixture']))
+                while mixed_codecs_left > 0 and len(sampled_codecs) > 0:
+                    codec = random.sample(sampled_codecs, 1)[0]
+                    sampled_codecs.remove(codec)
+                    if not codec.startswith("#"): # not commented out
+                        codec = codec.split(",")
+                        # Pipe commands to follow Kaldi style
+                        if len(codec) == 4:
+                            info[fname]["codecs"].append(codec)
+                            input_fn = '\"{wav_fn}\"' if len(command) == 0 else '-'
+                            subcommand += f"ffmpeg -f {output_format} -i {input_fn} -c:a {codec[1]} -b:a {codec[2]} -ac 1 -ar {codec[3]} -f {codec[0]} - | "
+                            output_format = codec[0]
+                            mixed_codecs_left -= 1
+                        else:
+                            print("Unknown codec specification:", ",".join(codec))
 
-            if len(command) == 0:
+            
+            if len(subcommand) > 0:
+                command = subcommand + f"ffmpeg -y -f {output_format} -i - -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
+                saved_to_file = True
+                commands.append(command)
+        
+        if len(command) == 0:
                 dir, fname = os.path.split(path)
                 format = fname.split('.')
                 fname = '_'.join(format[:-1])
                 format = format[-1]
                 command = f"cp \"{wav_fn}\" \"{os.path.join(dir, fname + '_original.' + format)}\""
-            else:
-                command += f"ffmpeg -y -f {output_format} -i - -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
-            commands.append(command)
-        else:
+        elif not saved_to_file:
             command += f"ffmpeg -y {'-f ' + output_format + ' ' if len(command) > 0 else ''}-i {wav_fn if len(command) == 0 else '-'} -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
             commands.append(command)
 
@@ -275,7 +293,8 @@ def mix_cocktail(src_dir, dest_dir,
 
 def augment(dataset, dest_dir, 
             config, 
-            scheme={ "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
+            scheme={ "clean": 0.5,
+                     "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
                      "speed": 1.,
                      "pitch": 1.,
                      "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1},
@@ -318,7 +337,8 @@ def augment(dataset, dest_dir,
 
     random.shuffle(dataset)
     data_length = len(dataset)
-    end_index = int(data_length * (1 - sum(scheme["distortions"])))
+    surplus = (1 - scheme["clean"]) * (1 - sum(scheme["distortions"]))
+    end_index = int(data_length * min(1, max(0, scheme["clean"] + surplus)))
     clean_set = []
     print(f"Copy {len(clean_set)} clean files")
     for src in dataset[:end_index]:
@@ -327,32 +347,23 @@ def augment(dataset, dest_dir,
         fname = '_'.join(format[:-1])
         format = format[-1]
         clean_set.append(f"cp \"{src}\" \"{os.path.join(dest_dir, fname + '_original.' + format)}\"")
-    distorted_sets = []
-    import math
-    for category, percent in zip(categories, scheme["distortions"]):
-        if percent > 0:
-            delta = min(data_length, end_index + int(math.ceil(data_length * percent)))
-            if end_index < delta:
-                distorted_sets.append(mix_cocktail(dataset[end_index:delta],
-                                                dest_dir,
-                                                codecs[category], info,
-                                                scheme={'noise': scheme["noise"], 
-                                                        'speed': scheme["speed"],
-                                                        'pitch': scheme['pitch'],
-                                                        'rir': scheme["rir"],
-                                                        'distortions': scheme["distortions"],
-                                                        'number of codecs mixture': scheme["number of codecs mixture"]},
-                                                reverdb_dir=reverdb_dir,
-                                                noise_dir=noise_dir,
-                                                python_command=python_command,                                               
-                                                verbose=verbose))
-                end_index = delta
-            else:
-                print("No more files left")
-                distorted_sets.append([])
-                break
-        else:
-            distorted_sets.append([])
+    if end_index < data_length:
+        distorted_sets = []
+        distorted_sets.append(mix_cocktail(dataset[end_index:], 
+                                           dest_dir,
+                                           categories, codecs, info,
+                                           scheme={'noise': scheme["noise"],
+                                                   'speed': scheme["speed"],
+                                                   'pitch': scheme['pitch'],
+                                                   'rir': scheme["rir"],
+                                                   'distortions': scheme["distortions"],
+                                                   'number of codecs mixture': scheme["number of codecs mixture"]},
+                                           reverdb_dir=reverdb_dir,
+                                           noise_dir=noise_dir,
+                                           python_command=python_command,                                               
+                                           verbose=verbose))
+    else:
+        print("No more files left to process")
 
     distorted_sets.insert(0, clean_set)
 
