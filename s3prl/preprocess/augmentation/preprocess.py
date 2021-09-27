@@ -20,10 +20,11 @@ if __name__ == "__main__":
     noise_dir = "noise"
     distortion_config = "distortion_codecs.conf"
     scheme = { "clean": 0.5,
+               "normalize": { 'insert': [], 'type': 'ebu', 'level': -23.0, 'loudness': -2.0, 'peak': 2.0, 'offset': 0.0 },
                "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
-               "speed": 1.,
+               "tempo": 1.,
                "pitch": 1.,
-               "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1},
+               "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1, 'gain': 4},
                "distortions": [.2, .2, .2],
                "number of codecs mixture": 1 }
     if os.path.exists(args.config):
@@ -32,12 +33,31 @@ if __name__ == "__main__":
             for line in lines:
                 #if args.verbose:
                 #    print(line)
-                if not line.startswith('#'):
-                    [key, value] = line.strip().split("=")
+                line = line.strip()
+                if not line.startswith('#') and len(line) > 0:
+                    [key, value] = line.split("=")
                     if key == "PYTHON_COMMAND":
                         python_command = value
                         assert len(value) > 0, "Please provide the python command to use for generating commands in the script"
-                    if key == "SIGNAL_NOISE_RATIO":
+                    elif key == "NORMALIZE":
+                        scheme['normalize']['insert'] = value.split(',')
+                    elif key == "NORMALIZE_TYPE":
+                        scheme['normalize']['type'] = value
+                        assert any((scheme['normalize']['type'] == 'ebu', scheme['normalize']['type'] == 'rms', scheme['normalize']['type'] == 'peak')), "Please provide either ebu OR rms OR peak for NORMALIZE_TYPE"
+                    elif key == "NORMALIZE_TARGET_LEVEL":
+                        scheme['normalize']['level'] = float(value)
+                        assert any((scheme['normalize']['type'] == 'ebu' and scheme['normalize']['level'] <= -5.0 and scheme['normalize']['level'] >= -70.0,
+                                    scheme['normalize']['type'] != 'ebu' and scheme['normalize']['level'] <= 0.0 and scheme['normalize']['level'] >= -99.0)), "Please provide target value between -99.0 and 0.0"
+                    elif key == "NORMALIZE_EBU_LOUDNESS_RANGE_TARGET":
+                        scheme['normalize']['loudness'] = float(value)
+                        assert scheme['normalize']['type'] != 'ebu' or (scheme['normalize']['loudness'] <= 20.0 and scheme['normalize']['loudness'] >= 1.0), "Please provide target value between 20.0 and 1.0"
+                    elif key == "NORMALIZE_EBU_TRUE_PEAK":
+                        scheme['normalize']['peak'] = float(value)
+                        assert scheme['normalize']['type'] != 'ebu' or (scheme['normalize']['peak'] <= 0.0 and scheme['normalize']['peak'] >= -9.0), "Please provide NORMALIZE_EBU_TRUE_PEAK value between -9.0 and 0.0"
+                    elif key == "NORMALIZE_EBU_OFFSET":
+                        scheme['normalize']['offset'] = float(value)
+                        assert scheme['normalize']['type'] != 'ebu' or (scheme['normalize']['offset'] <= 99.0 and scheme['normalize']['offset'] >= -99.0), "Please provide NORMALIZE_EBU_OFFSET value between -99.0 and 99.0"
+                    elif key == "SIGNAL_NOISE_RATIO":
                         scheme['noise']['snr'] = [float(v) for v in value.split(',')]
                     elif key == "INSERT_SNR":
                         scheme['noise']['insert'] = value.split(',')
@@ -52,13 +72,15 @@ if __name__ == "__main__":
                     elif key == "NOISE_APPLICATION_MODE":
                         scheme['noise']['mode'] = int(value)
                         assert scheme['noise']['mode'] == 0 or scheme['noise']['mode'] == 1, "Please provide NOISE_APPLICATION_MODE 0 or 1" 
-                    elif key == "SPEED_PERTURBATION":
-                        scheme['speed'] = float(value)
-                        assert scheme['speed'] >= 0.5 and scheme['speed'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
-                    elif key == "PITCH_PERTURBATION":
+                    elif key == "TEMPO_SHIFT":
+                        scheme['tempo'] = float(value)
+                        assert scheme['tempo'] >= 0.5 and scheme['tempo'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
+                    elif key == "PITCH_SHIFT":
                         scheme['pitch'] = float(value)
                     elif key == "REVERB_MODE":
                         scheme['rir']['mode'] = value
+                    elif key == "REVERB_DRY_WET_GAIN":
+                        scheme['rir']['gain'] = int(value)
                     elif key == "REVERB_MIXING_LEVEL":
                         scheme['rir']['mixing_level'] = int(value)
                         assert not (scheme['rir']['mode'] == 'small room' or \
@@ -126,15 +148,19 @@ if __name__ == "__main__":
     # number of additive codecs per recording)
     scheme_dir = ""
     for k, v in scheme.items():
+        k = k[:3]
         if isinstance(v, (dict)):
             scheme_dir += ("_" if len(scheme_dir) > 0 else "") + \
-                           "_".join([f'{k}_{"_".join([str(_v) for _v in v])}' if isinstance(v, (list)) else f'{k}_{str(v)}' for k, v in v.items()])
+                           "_".join([f'{k}_{"_".join([str(_v) for _v in v])}' if isinstance(v, (list)) else f'{k[:3]}_{str(v)}' for k, v in v.items()])
         elif isinstance(v, (list)):
             scheme_dir += ("_" if len(scheme_dir) > 0 else "") + "_".join([str(_v) for _v in v])
         else: 
             scheme_dir += ("_" if len(scheme_dir) > 0 else "") + str(k).replace(" ", "-") + "_" + str(v)
 
     dest_dir = os.path.join(dest, scheme_dir)
+    if os.path.exists(dest_dir):
+        shutil.rmtree(dest_dir, ignore_errors=False, onerror=None)
+    os.makedirs(dest_dir)
     
     src_wavs = glob(os.path.join(src, "*.wav"))
     sets = augment(src_wavs, dest_dir, 

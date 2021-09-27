@@ -84,7 +84,7 @@ def add_noise(command, src_file, dest_file, info={},
     return command
 
 def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="reverdb", 
-            config:dict={'mode': 'RAW', 'id': 0, 'mixing_level': -1}, 
+            config:dict={'mode': 'RAW', 'id': 0, 'mixing_level': -1, 'gain': 4}, 
             verbose=False):
     import os, random
     from glob import glob
@@ -143,12 +143,12 @@ def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="re
             if verbose:
                 print(f"Using {rir_mode} mode, adding RIR {basis}{'' if src_file == '-' else ' to ' + os.path.basename(src_file)}")
             if rir_mode == "AMIX":
-                command += f"ffmpeg {'' if input_format is None else '-f ' + input_format + ' ' }-i {src_file} -i \"{rir_wav_path}\" -filter_complex '[0] [1] afir=dry=10:wet=10 [reverb]; [0] [reverb] amix=inputs=2:weights=3 1' -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {output_format} -f {wav_info.format.lower()} - | "
+                command += f"ffmpeg {'' if input_format is None else '-f ' + input_format + ' ' }-i {src_file} -i \"{rir_wav_path}\" -filter_complex '[0] [1] afir=dry={config['gain']}:wet={config['gain']} [reverb]; [0] [reverb] amix=inputs=2:weights=3 1' -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {output_format} -f {wav_info.format.lower()} - | "
             elif rir_mode == "ROOM":
                 output_format = "ac3"
-                command += f"ffmpeg {'' if input_format is None else '-f ' + input_format + ' ' }-i {src_file} -i \"{rir_wav_path}\" -filter_complex '[0] [1] afir=dry=10:wet=10' -c:a {output_format} -room_type {room_type} -mixing_level {mixing_level} -f {output_format} - | "
+                command += f"ffmpeg {'' if input_format is None else '-f ' + input_format + ' ' }-i {src_file} -i \"{rir_wav_path}\" -filter_complex '[0] [1] afir=dry={config['gain']}:wet={config['gain']}' -c:a {output_format} -room_type {room_type} -mixing_level {mixing_level} -f {output_format} - | "
             else:
-                command += f"ffmpeg {'' if input_format is None else '-f ' + input_format + ' ' }-i {src_file} -i \"{rir_wav_path}\" -filter_complex '[0] [1] afir=dry=10:wet=10' -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
+                command += f"ffmpeg {'' if input_format is None else '-f ' + input_format + ' ' }-i {src_file} -i \"{rir_wav_path}\" -filter_complex '[0] [1] afir=dry={config['gain']}:wet={config['gain']}' -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
             info["RIR"] = basis
     else:
         print("File or RIR folder not exists:", rir_source)
@@ -156,12 +156,87 @@ def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="re
     #return reverb_sig
     return command, output_format
 
+def normalize(src_fn, dest_fn, wav_info,
+              normalization_type="ebu",
+              target_level=-23.0,
+              loudness_range_target=7.0,
+              true_peak=-2.0,
+              offset=0.0,
+              keep_original_audio=False,
+              pre_filter=None,
+              post_filter=None,
+              extra_input_options=None,
+              extra_output_options=None,
+              output_format=None,
+              return_mode='cmd',
+              verbose=False):
+
+    if return_mode == 'program':
+        command = f'ffmpeg-normalize "{src_fn}" -nt {normalization_type} -t {target_level} '
+        command += f"-c:a {wav_info.codec} -b:a {wav_info.brate} -ar {wav_info.samplerate} "
+        if normalization_type == "ebu":
+            command += f"-lrt {loudness_range_target} "
+            command += f"-tp {true_peak} "
+            if offset != 0:
+                command += f"--offset {offset} "
+        if keep_original_audio:
+            command += "-koa "
+        if pre_filter is not None:
+            command += f"-prf {pre_filter} "
+        if post_filter is not None:
+            command += f"-pof {post_filter} "
+        if extra_input_options is not None:
+            command += f"-ei {extra_input_options} "
+        if extra_output_options is not None:
+            command += f"-ei {extra_output_options} "
+        if output_format is not None:
+            command += f"-ofmt {output_format} "
+        if verbose:
+            command += f"-p "
+        command += f'-f -o "{dest_fn}"'
+        command = [command]
+    else:
+        audio_codec = wav_info.codec
+        audio_bitrate = wav_info.brate
+        sample_rate = wav_info.samplerate
+        from extools.ffmpeg_normalize.normalize import FFmpegNormalize
+        ffmpeg_normalize = FFmpegNormalize(normalization_type=normalization_type,
+                                           target_level=target_level,
+                                           print_stats=verbose,
+                                           loudness_range_target=loudness_range_target,
+                                           # threshold=cli_args.threshold,
+                                           true_peak=true_peak,
+                                           offset=offset,
+                                           dual_mono=False,
+                                           audio_codec=audio_codec,
+                                           audio_bitrate=audio_bitrate,
+                                           sample_rate=sample_rate,
+                                           keep_original_audio=keep_original_audio,
+                                           pre_filter=pre_filter,
+                                           post_filter=post_filter,
+                                           video_codec='copy',
+                                           video_disable=True,
+                                           subtitle_disable=True,
+                                           metadata_disable=True,
+                                           chapters_disable=True,
+                                           extra_input_options=extra_input_options,
+                                           extra_output_options=extra_output_options,
+                                           output_format=output_format,
+                                           dry_run=False,
+                                           return_cmd=True,
+                                           debug=False,
+                                           progress=False)
+        ffmpeg_normalize.add_media_file(src_fn, dest_fn)
+        command = ffmpeg_normalize.run_normalization()
+    return command
+
 def mix_cocktail(src_dir, dest_dir, 
                  categories, codecs_cats, info={}, 
-                 scheme={ "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
-                          "speed": 1.,
+                 scheme={ "normalize": { 'insert': [], 'type': 'ebu', 'level': -23.0, 'loudness': -2.0, 'peak': 2.0, 'offset': 0.0 },
+                          "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
+                          "tempo": 1.,
                           'pitch': 1.,
-                          "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1},
+                          "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1, 'gain': 4},
                           "distortions": [.2, .2, .2],
                           "number of codecs mixture": 1 }, 
                  reverdb_dir="reverdb",
@@ -176,7 +251,6 @@ def mix_cocktail(src_dir, dest_dir,
     if isinstance(src_dir, str):
         src_dir = glob(f"{src_dir}/*.wav")
 
-    #TODO: Compute the partitions
     data_length = len(src_dir)
     distortions = [''] * data_length
     start_index = 0
@@ -187,6 +261,7 @@ def mix_cocktail(src_dir, dest_dir,
             distortions[start_index:end_index] = category
             start_index = end_index
 
+    # run the pipeline
     for i, wav_fn in enumerate(src_dir):
         fname = os.path.basename(wav_fn)
         fname = "".join(fname.split(".")[:-1])
@@ -195,18 +270,30 @@ def mix_cocktail(src_dir, dest_dir,
         info[fname] = {"codecs": []}
 
         command = ""
-        if 'A' in scheme['noise']['insert']:
-            command = add_noise(command, wav_fn, path, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command)
+        if 'normalize' in scheme and 'insert' in scheme['normalize'] and 'V' in scheme['normalize']['insert']:
+            command = normalize(wav_fn, path, wav_info, 
+                                normalization_type=scheme['normalize']['type'], 
+                                target_level=scheme['normalize']['level'],
+                                loudness_range_target=scheme['normalize']['loudness'],
+                                true_peak=scheme['normalize']['peak'],
+                                offset=scheme['normalize']['offset'],
+                                return_mode='cmd')
+            commands.append(' '.join(command))
+            wav_fn = path
+            command = ""
+        
+        if 'noise' in scheme and 'A' in scheme['noise']['insert']:
+            command += add_noise(command, wav_fn, path, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command)
             wav_fn = path
 
         output_format = wav_info.format.lower()
         perturbation = None
-        if 'speed' in scheme and scheme['speed'] != -1:
-            speed_perturbation = min(100.0, max(0.5, scheme['speed']))
+        if 'tempo' in scheme and scheme['tempo'] != -1:
+            speed_perturbation = min(100.0, max(0.5, scheme['tempo']))
             if speed_perturbation != 1.0:
                 #if verbose:
-                print("Apply speed perturbation:", speed_perturbation)
-                info[fname]['speed_perturbation'] = speed_perturbation
+                print("Apply tempo shift:", speed_perturbation)
+                info[fname]['TEMPO_SHIFT'] = speed_perturbation
                 
                 if 'pitch' not in scheme and 'B' in scheme['noise']['insert']:
                     command += f"ffmpeg -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
@@ -228,7 +315,7 @@ def mix_cocktail(src_dir, dest_dir,
                 #if verbose:
                 print("Apply pitch perturbation:", pitch_perturbation)
                 perturbation = f"asetrate={pitch_perturbation},{perturbation}"
-                info[fname]['pitch_perturbation'] = perturbation
+                info[fname]['PITCH_SHIFT'] = perturbation
                 if 'B' in scheme['noise']['insert']:
                     command += f"ffmpeg -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
                     wav_fn = path
@@ -236,11 +323,11 @@ def mix_cocktail(src_dir, dest_dir,
                     command += f"ffmpeg -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
                     wav_fn = "-"
 
-        if 'B' in scheme['noise']['insert']:
+        if 'noise' in scheme and 'B' in scheme['noise']['insert']:
             command = add_noise(command, wav_fn, path, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command)
             wav_fn = path
 
-        if scheme['rir'] is not None:
+        if 'rir' in scheme and scheme['rir'] is not None:
             command, output_format = add_rir(command, output_format, 
                                              wav_fn, wav_info,
                                              info=info[fname], 
@@ -276,7 +363,7 @@ def mix_cocktail(src_dir, dest_dir,
                 command = subcommand + f"ffmpeg -y -f {output_format} -i - -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
                 saved_to_file = True
                 commands.append(command)
-        
+
         if len(command) == 0:
                 dir, fname = os.path.split(path)
                 format = fname.split('.')
@@ -287,6 +374,16 @@ def mix_cocktail(src_dir, dest_dir,
             command += f"ffmpeg -y {'-f ' + output_format + ' ' if len(command) > 0 else ''}-i {wav_fn if len(command) == 0 else '-'} -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
             commands.append(command)
 
+        if 'normalize' in scheme and 'insert' in scheme['normalize'] and 'H' in scheme['normalize']['insert']:
+            command = normalize(path, path, wav_info, 
+                                normalization_type=scheme['normalize']['type'], 
+                                target_level=scheme['normalize']['level'],
+                                loudness_range_target=scheme['normalize']['loudness'],
+                                true_peak=scheme['normalize']['peak'],
+                                offset=scheme['normalize']['offset'],
+                                return_mode='program')
+            commands.append(' '.join(command))
+
     if verbose:
         print(f"Generated {len(commands)} commands")
     return commands
@@ -294,10 +391,11 @@ def mix_cocktail(src_dir, dest_dir,
 def augment(dataset, dest_dir, 
             config, 
             scheme={ "clean": 0.5,
+                     "normalize": { 'insert': [], 'type': 'ebu', 'level': -23.0, 'loudness': -2.0, 'peak': 2.0, 'offset': 0.0 },
                      "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
-                     "speed": 1.,
+                     "tempo": 1.,
                      "pitch": 1.,
-                     "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1},
+                     "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1, 'gain': 4},
                      "distortions": [.2, .2, .2],
                      "number of codecs mixture": 1 }, 
             reverdb_dir="reverdb",
@@ -337,23 +435,24 @@ def augment(dataset, dest_dir,
 
     random.shuffle(dataset)
     data_length = len(dataset)
-    surplus = (1 - scheme["clean"]) * (1 - sum(scheme["distortions"]))
-    end_index = int(data_length * min(1, max(0, scheme["clean"] + surplus)))
+    end_index = int(data_length * min(1, max(0, scheme["clean"])))
     clean_set = []
     print(f"Copy {len(clean_set)} clean files")
-    for src in dataset[:end_index]:
-        fname = os.path.basename(src)
-        format = fname.split('.')
-        fname = '_'.join(format[:-1])
-        format = format[-1]
-        clean_set.append(f"cp \"{src}\" \"{os.path.join(dest_dir, fname + '_original.' + format)}\"")
+    if end_index > 0:
+        for src in dataset[:end_index]:
+            fname = os.path.basename(src)
+            format = fname.split('.')
+            fname = '_'.join(format[:-1])
+            format = format[-1]
+            clean_set.append(f"cp \"{src}\" \"{os.path.join(dest_dir, fname + '_original.' + format)}\"")
     if end_index < data_length:
         distorted_sets = []
         distorted_sets.append(mix_cocktail(dataset[end_index:], 
                                            dest_dir,
                                            categories, codecs, info,
-                                           scheme={'noise': scheme["noise"],
-                                                   'speed': scheme["speed"],
+                                           scheme={'normalize': scheme['normalize'],
+                                                   'noise': scheme["noise"],
+                                                   'tempo': scheme["tempo"],
                                                    'pitch': scheme['pitch'],
                                                    'rir': scheme["rir"],
                                                    'distortions': scheme["distortions"],

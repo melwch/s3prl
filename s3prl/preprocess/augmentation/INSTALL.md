@@ -29,3 +29,9 @@ cd ~/ffmpeg_sources && \
 wget -O ffmpeg-snapshot.tar.bz2 https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2 && \
 tar xjvf ffmpeg-snapshot.tar.bz2 && \
 cd ffmpeg && mkdir build && cd build && ../configure --prefix="/usr" --pkg-config-flags="--static" --extra-cflags="-I/usr/include" --extra-ldflags="-L/usr/lib" --extra-libs="-lpthread -lm" --extra-version=1ubuntu0.1 --toolchain=hardened --ld="g++" --bindir="/usr/bin" --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-libfdk-aac --enable-libsvtav1 --enable-libdav1d --enable-nonfree --disable-stripping --disable-filter=resample --enable-libopencore-amrnb --enable-version3 --enable-avisynth --enable-gpl --enable-gnutls --enable-ladspa --enable-libaom --enable-libass --enable-libbluray --enable-libbs2b --enable-libcaca --enable-libcodec2 --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libjack --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-libpulse --enable-librsvg --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libssh --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzmq --enable-libzvbi --enable-lv2 --enable-omx --enable-openal --enable-opencl --enable-opengl --enable-sdl2 --enable-libdc1394 --enable-libdrm --enable-nvenc --enable-chromaprint --enable-frei0r --enable-libx264 && make clean && make -j 8 && sudo make install
+
+- **FFMPEG-NORMALIZE**
+This is a python library that allows user to configure the loudness normalization settings and generate the FFMPEG command for execution
+To install, use either method:
+- python3 -m pip install ffmpeg-normalize
+- pip3 install ffmpeg-normalize
