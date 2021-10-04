@@ -24,6 +24,7 @@ if __name__ == "__main__":
                "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
                "tempo": 1.,
                "pitch": 1.,
+               "perturbation_mode": "tempo",
                "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1, 'gain': 4},
                "distortions": [.2, .2, .2],
                "number of codecs mixture": 1 }
@@ -77,6 +78,13 @@ if __name__ == "__main__":
                         assert scheme['tempo'] >= 0.5 and scheme['tempo'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
                     elif key == "PITCH_SHIFT":
                         scheme['pitch'] = float(value)
+                    elif key == "PERTURBATION_MODE":
+                        if value == "TEMPO_SHIFT":
+                            scheme['perturbation_mode'] = "tempo"
+                        elif value == "PITCH_SHIFT":
+                            scheme['perturbation_mode'] = "pitch"
+                        else:
+                            scheme['perturbation_mode'] = value
                     elif key == "REVERB_MODE":
                         scheme['rir']['mode'] = value
                     elif key == "REVERB_DRY_WET_GAIN":
