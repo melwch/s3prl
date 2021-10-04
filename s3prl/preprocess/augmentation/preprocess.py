@@ -22,9 +22,7 @@ if __name__ == "__main__":
     scheme = { "clean": 0.5,
                "normalize": { 'insert': [], 'type': 'ebu', 'level': -23.0, 'loudness': -2.0, 'peak': 2.0, 'offset': 0.0 },
                "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
-               "tempo": 1.,
-               "pitch": 1.,
-               "perturbation_mode": "tempo",
+               "perturbation": { "mode" : "tempo", "value": 1. },
                "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1, 'gain': 4},
                "distortions": [.2, .2, .2],
                "number of codecs mixture": 1 }
@@ -74,17 +72,17 @@ if __name__ == "__main__":
                         scheme['noise']['mode'] = int(value)
                         assert scheme['noise']['mode'] == 0 or scheme['noise']['mode'] == 1, "Please provide NOISE_APPLICATION_MODE 0 or 1" 
                     elif key == "TEMPO_SHIFT":
-                        scheme['tempo'] = float(value)
-                        assert scheme['tempo'] >= 0.5 and scheme['tempo'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
+                        scheme['perturbation']['value'] = float(value)
+                        assert scheme['perturbation']['value'] >= 0.5 and scheme['perturbation']['value'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
                     elif key == "PITCH_SHIFT":
-                        scheme['pitch'] = float(value)
+                        scheme['perturbation']['value'] = float(value)
                     elif key == "PERTURBATION_MODE":
                         if value == "TEMPO_SHIFT":
-                            scheme['perturbation_mode'] = "tempo"
+                            scheme['perturbation']['mode'] = "tempo"
                         elif value == "PITCH_SHIFT":
-                            scheme['perturbation_mode'] = "pitch"
+                            scheme['perturbation']['mode'] = "pitch"
                         else:
-                            scheme['perturbation_mode'] = value
+                            scheme['perturbation']['mode'] = value
                     elif key == "REVERB_MODE":
                         scheme['rir']['mode'] = value
                     elif key == "REVERB_DRY_WET_GAIN":
@@ -155,15 +153,17 @@ if __name__ == "__main__":
     # speed perturbation from 0.5 to 100.0
     # number of additive codecs per recording)
     scheme_dir = ""
+    chars_limit=3
+    value_limit=4
     for k, v in scheme.items():
-        k = k[:3]
+        k = k[:chars_limit]
         if isinstance(v, (dict)):
             scheme_dir += ("_" if len(scheme_dir) > 0 else "") + \
-                           "_".join([f'{k}_{"_".join([str(_v) for _v in v])}' if isinstance(v, (list)) else f'{k[:3]}_{str(v)}' for k, v in v.items()])
+                           "_".join(['{}_{}'.format(k, "_".join([str(_v).replace("/", "-").replace("\\", "-")[:value_limit] for _v in v])) if isinstance(v, (list)) else '{}_{}'.format(k[:chars_limit], str(v).replace("/", "-").replace("\\", "-")[:value_limit]) for k, v in v.items()])
         elif isinstance(v, (list)):
-            scheme_dir += ("_" if len(scheme_dir) > 0 else "") + "_".join([str(_v) for _v in v])
+            scheme_dir += ("_" if len(scheme_dir) > 0 else "") + "_".join([str(_v).replace("/", "-").replace("\\", "-")[:value_limit] for _v in v])
         else: 
-            scheme_dir += ("_" if len(scheme_dir) > 0 else "") + str(k).replace(" ", "-") + "_" + str(v)
+            scheme_dir += ("_" if len(scheme_dir) > 0 else "") + str(k).replace(" ", "-") + "_" + str(v).replace("/", "-").replace("\\", "-")[:value_limit]
 
     dest_dir = os.path.join(dest, scheme_dir)
     if os.path.exists(dest_dir):

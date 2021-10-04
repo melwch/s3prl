@@ -234,8 +234,7 @@ def mix_cocktail(src_dir, dest_dir,
                  categories, codecs_cats, info={}, 
                  scheme={ "normalize": { 'insert': [], 'type': 'ebu', 'level': -23.0, 'loudness': -2.0, 'peak': 2.0, 'offset': 0.0 },
                           "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
-                          "tempo": 1.,
-                          'pitch': 1.,
+                          "perturbation": { "mode" : "tempo", "value": 1. },
                           "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1, 'gain': 4},
                           "distortions": [.2, .2, .2],
                           "number of codecs mixture": 1 }, 
@@ -252,15 +251,14 @@ def mix_cocktail(src_dir, dest_dir,
         src_dir = glob(f"{src_dir}/*.wav")
 
     data_length = len(src_dir)
-    distortions = [''] * data_length
+    distortions = [""] * data_length
     start_index = 0
     end_index = 0
     for category, percent in zip(categories, scheme["distortions"]):
-        end_index = math.ceil(min(data_length, data_length * percent + start_index))
+        end_index = start_index if percent <= 0 else math.ceil(min(data_length, data_length * percent + start_index)) + 1
         if start_index < end_index:
-            distortions[start_index:end_index] = category
+            distortions[start_index:end_index] = [category] * (end_index - start_index + 1)
             start_index = end_index
-
     # run the pipeline
     for i, wav_fn in enumerate(src_dir):
         fname = os.path.basename(wav_fn)
@@ -288,39 +286,40 @@ def mix_cocktail(src_dir, dest_dir,
 
         output_format = wav_info.format.lower()
         perturbation = None
-        if 'tempo' in scheme['perturbation_mode'] and 'tempo' in scheme and scheme['tempo'] != -1:
-            speed_perturbation = min(100.0, max(0.5, scheme['tempo']))
-            if speed_perturbation != 1.0:
-                #if verbose:
-                print("Apply tempo shift:", speed_perturbation)
-                info[fname]['TEMPO_SHIFT'] = speed_perturbation
-                
-                if 'pitch' not in scheme and 'B' in scheme['noise']['insert']:
-                    command += f"ffmpeg -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
-                    wav_fn = path
-                else:
-                    command += f"ffmpeg -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
-                    wav_fn = "-"
-        elif 'pitch' in scheme['perturbation_mode'] and 'pitch' in scheme and scheme['pitch'] != -1:
-            pitch_perturbation = int(wav_info.samplerate * float(max(8000.0 / wav_info.samplerate, scheme['pitch'])))
-            if pitch_perturbation != wav_info.samplerate:
-                scheme['pitch'] = pitch_perturbation / wav_info.samplerate
-                tempo_times = ((pitch_perturbation / wav_info.samplerate) % 2) - 1
-                tempo = min(100.0, max(0.5, 1/scheme['pitch']))
-                perturbation = f"atempo={tempo}"
-                if tempo_times > 1:
-                    perturbation += (f",atempo={tempo}" * tempo_times)
+        if 'perturbation' in scheme['perturbation']:
+            if scheme['perturbation'].get('mode', None) == 'tempo' and scheme['perturbation'].get('value', -1) != -1:
+                speed_perturbation = min(100.0, max(0.5, scheme['tempo']))
+                if speed_perturbation != 1.0:
+                    #if verbose:
+                    print("Apply tempo shift:", speed_perturbation)
+                    info[fname]['TEMPO_SHIFT'] = speed_perturbation
+                    
+                    if 'pitch' not in scheme and 'B' in scheme['noise']['insert']:
+                        command += f"ffmpeg -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
+                        wav_fn = path
+                    else:
+                        command += f"ffmpeg -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
+                        wav_fn = "-"
+            elif scheme['perturbation'].get('mode', None) == 'pitch' and scheme['perturbation'].get('value', -1) != -1:
+                pitch_perturbation = int(wav_info.samplerate * float(max(8000.0 / wav_info.samplerate, scheme['pitch'])))
+                if pitch_perturbation != wav_info.samplerate:
+                    scheme['pitch'] = pitch_perturbation / wav_info.samplerate
+                    tempo_times = ((pitch_perturbation / wav_info.samplerate) % 2) - 1
+                    tempo = min(100.0, max(0.5, 1/scheme['pitch']))
+                    perturbation = f"atempo={tempo}"
+                    if tempo_times > 1:
+                        perturbation += (f",atempo={tempo}" * tempo_times)
 
-                #if verbose:
-                print("Apply pitch perturbation:", pitch_perturbation)
-                perturbation = f"asetrate={pitch_perturbation},{perturbation}"
-                info[fname]['PITCH_SHIFT'] = perturbation
-                if 'B' in scheme['noise']['insert']:
-                    command += f"ffmpeg -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
-                    wav_fn = path
-                else:
-                    command += f"ffmpeg -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
-                    wav_fn = "-"
+                    #if verbose:
+                    print("Apply pitch perturbation:", pitch_perturbation)
+                    perturbation = f"asetrate={pitch_perturbation},{perturbation}"
+                    info[fname]['PITCH_SHIFT'] = perturbation
+                    if 'B' in scheme['noise']['insert']:
+                        command += f"ffmpeg -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
+                        wav_fn = path
+                    else:
+                        command += f"ffmpeg -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
+                        wav_fn = "-"
 
         if 'noise' in scheme and 'B' in scheme['noise']['insert']:
             command = add_noise(command, wav_fn, path, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command)
@@ -335,16 +334,15 @@ def mix_cocktail(src_dir, dest_dir,
                                              verbose=verbose)
 
         saved_to_file = False
+        print("DISTORTION", distortions[i])
         if distortions[i] in codecs_cats:
             subcommand = ""
             codecs = codecs_cats[distortions[i]]
             num_codecs = len(codecs)        
             if num_codecs > 0:
                 sampled_codecs = codecs.copy()            
-                mixed_codecs_left = max(1, min(num_codecs, scheme['number of codecs mixture']))
-                while mixed_codecs_left > 0 and len(sampled_codecs) > 0:
-                    codec = random.sample(sampled_codecs, 1)[0]
-                    sampled_codecs.remove(codec)
+                num_mixed_codecs = max(1, min(num_codecs, scheme['number of codecs mixture']))
+                for codec in random.sample(sampled_codecs, num_mixed_codecs):
                     if not codec.startswith("#"): # not commented out
                         codec = codec.split(",")
                         # Pipe commands to follow Kaldi style
@@ -353,14 +351,13 @@ def mix_cocktail(src_dir, dest_dir,
                             input_fn = '\"{wav_fn}\"' if len(command) == 0 else '-'
                             subcommand += f"ffmpeg -f {output_format} -i {input_fn} -c:a {codec[1]} -b:a {codec[2]} -ac 1 -ar {codec[3]} -f {codec[0]} - | "
                             output_format = codec[0]
-                            mixed_codecs_left -= 1
                         else:
                             print("Unknown codec specification:", ",".join(codec))
-
             
             if len(subcommand) > 0:
-                command = subcommand + f"ffmpeg -y -f {output_format} -i - -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
+                command += subcommand + f"ffmpeg -y -f {output_format} -i - -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
                 saved_to_file = True
+                print("ADDED DISTORTIONS!!!!")
                 commands.append(command)
 
         if len(command) == 0:
@@ -385,6 +382,7 @@ def mix_cocktail(src_dir, dest_dir,
 
     if verbose:
         print(f"Generated {len(commands)} commands")
+
     return commands
 
 def augment(dataset, dest_dir, 
@@ -392,8 +390,7 @@ def augment(dataset, dest_dir,
             scheme={ "clean": 0.5,
                      "normalize": { 'insert': [], 'type': 'ebu', 'level': -23.0, 'loudness': -2.0, 'peak': 2.0, 'offset': 0.0 },
                      "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
-                     "tempo": 1.,
-                     "pitch": 1.,
+                     "perturbation": { "mode" : "tempo", "value": 1. },
                      "rir": {'mode': 'RAW', 'id': 0, 'mixing_level': -1, 'gain': 4},
                      "distortions": [.2, .2, .2],
                      "number of codecs mixture": 1 }, 
@@ -451,8 +448,7 @@ def augment(dataset, dest_dir,
                                            categories, codecs, info,
                                            scheme={'normalize': scheme['normalize'],
                                                    'noise': scheme["noise"],
-                                                   'tempo': scheme["tempo"],
-                                                   'pitch': scheme['pitch'],
+                                                   'perturbation': scheme["perturbation"],
                                                    'rir': scheme["rir"],
                                                    'distortions': scheme["distortions"],
                                                    'number of codecs mixture': scheme["number of codecs mixture"]},
