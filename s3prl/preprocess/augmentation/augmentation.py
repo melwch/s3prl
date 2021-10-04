@@ -334,7 +334,6 @@ def mix_cocktail(src_dir, dest_dir,
                                              verbose=verbose)
 
         saved_to_file = False
-        print("DISTORTION", distortions[i])
         if distortions[i] in codecs_cats:
             subcommand = ""
             codecs = codecs_cats[distortions[i]]
@@ -357,7 +356,6 @@ def mix_cocktail(src_dir, dest_dir,
             if len(subcommand) > 0:
                 command += subcommand + f"ffmpeg -y -f {output_format} -i - -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
                 saved_to_file = True
-                print("ADDED DISTORTIONS!!!!")
                 commands.append(command)
 
         if len(command) == 0:
