@@ -1,9 +1,9 @@
 clear
-#DATA_DIR="/media/m/F439-FA9D/workshop/callhome/callhome_data/data/wav"
+DATA_DIR="/media/m/F439-FA9D/workshop/callhome/wav"
 #DATA_DIR="/mnt/e/workshop/callhome/callhome_data/data/wav"
-#DEST_DIR="/media/m/F439-FA9D/workshop/callhome/callhome_data/data/adapt"
-DATA_DIR="../../../../data_augmentation/sample"
-DEST_DIR="../../../../data_augmentation/wav"
+DEST_DIR="/media/m/F439-FA9D/workshop/callhome/adapt"
+#DATA_DIR="../../../../data_augmentation/sample"
+#DEST_DIR="../../../../data_augmentation/wav"
 
 if [ -f $DEST_DIR ]; then
     rm -rf $DEST_DIR
@@ -24,5 +24,5 @@ fi
 python3 preprocess.py --verbose "$DATA_DIR" "$DEST_DIR" "config/config.conf"
 chmod +x make_distorted_wavs.sh
 ./make_distorted_wavs.sh
-rm make_distorted_wavs.sh
+#rm make_distorted_wavs.sh
 echo $'\n\nCheck out "cocktail.json" for the actual augmentation methods and settings applied on each source audio file\n\n'

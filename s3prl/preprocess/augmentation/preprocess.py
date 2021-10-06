@@ -99,14 +99,14 @@ if __name__ == "__main__":
                     elif key == "CLEAN_SET":
                         scheme["clean"] = min(1, max(0, float(value)))
                     elif key == "MINOR_DISTORTION_PERCENTAGE":
-                        scheme["minor distortion"] = float(value)
-                        assert scheme["minor distortion"] >= 0.0 and scheme["minor distortion"] <= 1.0, "Please provide MINOR_DISTORTION_PERCENTAGE within the range 0.0 and 1.0"
+                        scheme["distortions"][0] = float(value)
+                        assert scheme["distortions"][0] >= 0.0 and scheme["distortions"][0] <= 1.0, "Please provide MINOR_DISTORTION_PERCENTAGE within the range 0.0 and 1.0"
                     elif key == "MEDIUM_DISTORTION_PERCENTAGE":
-                        scheme["medium distortion"] = float(value)
-                        assert scheme["medium distortion"] >= 0.0 and scheme["medium distortion"] <= 1.0, "Please provide MEDIUM_DISTORTION_PERCENTAGE within the range 0.0 and 1.0"
+                        scheme["distortions"][1] = float(value)
+                        assert scheme["distortions"][1] >= 0.0 and scheme["distortions"][1] <= 1.0, "Please provide MEDIUM_DISTORTION_PERCENTAGE within the range 0.0 and 1.0"
                     elif key == "HIGH_DISTORTION_PERCENTAGE":
-                        scheme["high distortion"] = float(value)
-                        assert scheme["high distortion"] >= 0.0 and scheme["high distortion"] <= 1.0, "Please provide HIGH_DISTORTION_PERCENTAGE within the range 0.0 and 1.0"                    
+                        scheme["distortions"][2] = float(value)
+                        assert scheme["distortions"][2] >= 0.0 and scheme["distortions"][2] <= 1.0, "Please provide HIGH_DISTORTION_PERCENTAGE within the range 0.0 and 1.0"                    
                     elif key == "MIXED_CODECS_PER_CATEGORY":
                         scheme["number of codecs mixture"] = int(value)
                         assert scheme["number of codecs mixture"] >= 1, "Please provide MIXED_CODECS_PER_CATEGORY between 1 and max number of codecs per distortion category"

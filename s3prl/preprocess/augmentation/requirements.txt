@@ -5,3 +5,4 @@ soundfile
 wget
 ffmpeg-normalize
 ffmpeg-progress-yield
+pydub
