@@ -61,10 +61,10 @@ if __name__ == "__main__":
                     elif key == "INSERT_SNR":
                         scheme['noise']['insert'] = value.split(',')
                     elif key == "NOISE_ID":
-                        scheme['noise']['id'] = int(value)
+                        scheme['noise']['id'] = value.split(',') if ',' in value else int(value)
                     elif key == "NUM_NOISE_TYPES":
                         scheme['noise']['ntypes'] = int(value)
-                        assert scheme['noise']['id'] == 0 and scheme['noise']['ntypes'] > 0, "Please provide number of types greater than 1"                    
+                        assert isinstance(scheme['noise']['id'], (list)) or (scheme['noise']['id'] == 0 and scheme['noise']['ntypes'] > 0), "Please provide number of types greater than 1"                    
                     elif key == "NOISE_DIR":
                         noise_dir = value
                         #assert os.path.exists(noise_dir), "Please provide NOISE_DIR with valid folder location"
@@ -73,7 +73,7 @@ if __name__ == "__main__":
                         assert scheme['noise']['mode'] == 0 or scheme['noise']['mode'] == 1, "Please provide NOISE_APPLICATION_MODE 0 or 1" 
                     elif key == "TEMPO_SHIFT":
                         scheme['perturbation']['value'] = float(value)
-                        assert scheme['perturbation']['value'] >= 0.5 and scheme['perturbation']['value'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
+                        #assert scheme['perturbation']['value'] >= 0.5 and scheme['perturbation']['value'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
                     elif key == "PITCH_SHIFT":
                         scheme['perturbation']['value'] = float(value)
                     elif key == "PERTURBATION_MODE":
@@ -95,7 +95,7 @@ if __name__ == "__main__":
                                      scheme['rir']['mixing_level'] <= 111), \
                                      "Please provide REVERB_MIXING_LEVEL within the range 80 and 111"
                     elif key == "REVERB_ID":
-                        scheme['rir']['id'] = value
+                        scheme['rir']['id'] = int(value)
                     elif key == "CLEAN_SET":
                         scheme["clean"] = min(1, max(0, float(value)))
                     elif key == "MINOR_DISTORTION_PERCENTAGE":

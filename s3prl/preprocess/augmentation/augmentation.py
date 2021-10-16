@@ -50,18 +50,34 @@ def add_noise(command, src_file, dest_file, info={},
     if config is not None:
         if "snr" in config:
             snr = config['snr']
-        if "id" in config: 
-            if type(config['id']) == 'int' and config['id'] >= 1 and config['id'] <= num_noise:
+        if "id" in config:
+            if isinstance(config['id'], (list)):
+                noise_id = config['id']
+            elif type(config['id']) == 'int' and config['id'] >= 1 and config['id'] <= num_noise:
                 no_id = False
                 noise_id = config['id']
         if "ntypes" in config and no_id:
             num_noise_types = config['ntypes']
     while noise_wav_path is None or any([not os.path.exists(fn) for fn in noise_wav_path]):
         try:
-            if no_id:
+            if isinstance(noise_id, (list)):
+                paths = []
+                for id in noise_id:
+                    fn = list(glob(os.path.join(noise_source, id + '_*.wav')))
+                    if len(fn) > 0:
+                        if os.path.exists(fn[0]):
+                            paths.append(fn[0])
+                        else:
+                            print(f'***ALERT: noise {fn} does not exists')
+                if len(paths) > 0:
+                    noise_wav_path = paths
+                else:
+                    no_id = True
+                noise_id = None
+            elif no_id:
                 noise_wav_path = random.sample(glob(os.path.join(noise_source, '*.wav')), num_noise_types)
             else:
-                noise_wav_path = glob(os.path.join(noise_source, noise_id + '_*.wav'))                
+                noise_wav_path = glob(os.path.join(noise_source, noise_id + '_*.wav'))
         except:
             print("Error loading noise", noise_wav_path) # sample again
             no_id = True
@@ -120,13 +136,13 @@ def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="re
                     rir_mode = config['mode']
             if "mixing_level" in config and config['mixing_level'] >= 80 and config['mixing_level'] <= 111:
                 mixing_level = config['mixing_level']
-            if "id" in config:                
+            if "id" in config:
                 if isinstance(config['id'], (int)) and config['id'] >= 1 and config['id'] <= num_rir:
                     no_id = False
                     rir_id = config['id']
                 elif isinstance(config['id'], (str)) and config['id'] == "small" or config['id'] == "middle" or config['id'] == "large":
                     rir_type = config['id']
-
+        
         while rir_wav_path is None or not os.path.exists(rir_wav_path):
             try:
                 if rir_wav_path is None:
@@ -136,16 +152,18 @@ def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="re
                     else:
                         if no_id:
                             rir_id = str(random.randint(1, num_rir))                        
-                        rir_wav_path = glob(os.path.join(rir_source, rir_id + '_*.wav'))[0]
+                        rir_wav_path = glob(os.path.join(rir_source, f'{rir_id}_*.wav'))[0]
                 else:
                     rir_wav_path = random.sample(glob(os.path.join(rir_source, '*.wav')), 1)[0]
             except:
+                import traceback, sys
                 print("Error loading rir", rir_wav_path) # sample again
                 no_id = True
                 rir_wav_path = None
+                traceback.print_exception(*sys.exc_info())
 
         if rir_wav_path is not None:
-            basis = '_'.join(os.path.basename(rir_wav_path)[:-4].split('_')[1:])
+            basis = '_'.join(os.path.basename(rir_wav_path)[:-4].split('_'))
             subcommand = ''
             if verbose:
                 print(f"Using {rir_mode} mode, adding RIR {basis}{'' if src_file == '-' else ' to ' + os.path.basename(src_file)}")
@@ -364,6 +382,7 @@ def mix_cocktail(src_dir, dest_dir,
                         # Pipe commands to follow Kaldi style
                         if len(codec) == 4:
                             info[fname]["codecs"].append(codec)
+                            info[fname]["codecs_type"] = distortions[i]
                             input_fn = f'\"{wav_fn}\"' if len(command) == 0 and len(subcommand) == 0 else '-'
                             if distortions[i] == "[HIGH DISTORTION CODECS]":
                                 subcommand += f'ffmpeg -f {output_format} -i {input_fn} -filter:a "volume=0.8" -c:a {codec[1]} -b:a {codec[2]} -ac 1 -ar {codec[3]} -f {codec[0]} - | '
