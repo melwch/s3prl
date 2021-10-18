@@ -167,6 +167,8 @@ def add_rir(command, input_format, src_file, wav_info, info=None, rir_source="re
             subcommand = ''
             if verbose:
                 print(f"Using {rir_mode} mode, adding RIR {basis}{'' if src_file == '-' else ' to ' + os.path.basename(src_file)}")
+            if src_file != '-': 
+                src_file = f'"{src_file}"'
             if rir_mode == "AMIX":
                 subcommand = f"ffmpeg {'' if input_format is None else '-f ' + input_format + ' ' }-i {src_file} -i \"{rir_wav_path}\" -filter_complex '[0] [1] afir=dry={config['gain']}:wet={config['gain']} [reverb]; [0] [reverb] amix=inputs=2:weights=3 1' -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {output_format} -f {wav_info.format.lower()} - | "
             elif rir_mode == "ROOM":
@@ -300,6 +302,7 @@ def mix_cocktail(src_dir, dest_dir,
 
         command = ""
         hasFFMPEG = False
+        addedNoiseB = False
         if 'normalize' in scheme and 'insert' in scheme['normalize'] and 'V' in scheme['normalize']['insert']:
             command = normalize(wav_fn, path, wav_info, 
                                 normalization_type=scheme['normalize']['type'], 
@@ -321,6 +324,7 @@ def mix_cocktail(src_dir, dest_dir,
         perturbation = None
         if 'perturbation' in scheme:
             if scheme['perturbation'].get('mode', None) == 'tempo':
+                print('perturbation value:', scheme['perturbation']['value'])
                 speed_perturbation = min(100.0, max(0.5, scheme['perturbation'].get('value', 1.0)))
                 if speed_perturbation != 1.0:
                     #if verbose:
@@ -328,10 +332,10 @@ def mix_cocktail(src_dir, dest_dir,
                     info[fname]['TEMPO_SHIFT'] = speed_perturbation
                     
                     if 'pitch' not in scheme and 'B' in scheme['noise']['insert']:
-                        command += f"ffmpeg -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
+                        command += f"ffmpeg -y -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
                         wav_fn = path
                     else:
-                        command += f"ffmpeg -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
+                        command += f"ffmpeg -y -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
                         wav_fn = "-"
                     hasFFMPEG = True
             elif scheme['perturbation'].get('mode', None) == 'pitch':
@@ -349,15 +353,16 @@ def mix_cocktail(src_dir, dest_dir,
                     perturbation = f"asetrate={pitch_perturbation},{perturbation}"
                     info[fname]['PITCH_SHIFT'] = perturbation
                     if 'B' in scheme['noise']['insert']:
-                        command += f"ffmpeg -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
+                        command += f"ffmpeg -y -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
                         wav_fn = path
                     else:
-                        command += f"ffmpeg -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
+                        command += f"ffmpeg -y -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
                         wav_fn = "-"
                     hasFFMPEG = True
         if 'noise' in scheme and 'B' in scheme['noise']['insert']:
             command = add_noise(command, wav_fn, path, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command)
             wav_fn = path
+            addedNoiseB = True
 
         if 'rir' in scheme and scheme['rir'] is not None:
             _hasFFMPEG, command, output_format = add_rir(command, output_format, 
@@ -367,6 +372,8 @@ def mix_cocktail(src_dir, dest_dir,
                                                          rir_source=reverdb_dir, 
                                                          verbose=verbose)
             hasFFMPEG = hasFFMPEG or _hasFFMPEG
+            if _hasFFMPEG:
+                addedNoiseB = False
 
         saved_to_file = False
         if distortions[i] in codecs_cats:
@@ -383,13 +390,14 @@ def mix_cocktail(src_dir, dest_dir,
                         if len(codec) == 4:
                             info[fname]["codecs"].append(codec)
                             info[fname]["codecs_type"] = distortions[i]
-                            input_fn = f'\"{wav_fn}\"' if len(command) == 0 and len(subcommand) == 0 else '-'
+                            input_fn = f'\"{wav_fn}\"' if addedNoiseB or (len(command) == 0 and len(subcommand) == 0) else '-'
                             if distortions[i] == "[HIGH DISTORTION CODECS]":
-                                subcommand += f'ffmpeg -f {output_format} -i {input_fn} -filter:a "volume=0.8" -c:a {codec[1]} -b:a {codec[2]} -ac 1 -ar {codec[3]} -f {codec[0]} - | '
+                                subcommand += f'ffmpeg -y -f {output_format} -i {input_fn} -filter:a "volume=0.8" -c:a {codec[1]} -b:a {codec[2]} -ac 1 -ar {codec[3]} -f {codec[0]} - | '
                             else:
-                                subcommand += f'ffmpeg -f {output_format} -i {input_fn} -c:a {codec[1]} -b:a {codec[2]} -ac 1 -ar {codec[3]} -f {codec[0]} - | '
+                                subcommand += f'ffmpeg -y -f {output_format} -i {input_fn} -c:a {codec[1]} -b:a {codec[2]} -ac 1 -ar {codec[3]} -f {codec[0]} - | '
                             output_format = codec[0]
                             hasFFMPEG = True
+                            addedNoiseB = False
                         else:
                             print("Unknown codec specification:", ",".join(codec))
             
@@ -407,8 +415,14 @@ def mix_cocktail(src_dir, dest_dir,
                 command = f"cp \"{wav_fn}\" \"{os.path.join(dir, fname + '.' + format)}\""
                 commands.append(command)
         elif hasFFMPEG and not saved_to_file:
-            command += f"ffmpeg -y {'-f ' + output_format + ' ' if len(command) > 0 else ''}-i {wav_fn if len(command) == 0 else '-'} -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
+            format = path.split('.')[-1]
+            temp_fn = f'temp.{format}'
+            if wav_fn != '-':
+                wav_fn = f'"{wav_fn}"'
+            command += f"ffmpeg -y {'-f ' + output_format + ' ' if len(command) > 0 else ''}-i {wav_fn if addedNoiseB or len(command) == 0 else '-'} -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{temp_fn}\""
             commands.append(command)
+            commands.append(f'if [ -f "{path}" ]; then\n\trm "{path}"\nfi')
+            commands.append(f'mv "{temp_fn}" "{path}"')
         elif len(command) > 0:
             commands.append(command)
 
