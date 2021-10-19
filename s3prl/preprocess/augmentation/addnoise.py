@@ -44,6 +44,7 @@ def apply_noise_to_speech(source_speech_fn, snrs, noise_wav_path, dest_fn=None):
     import torch, math
     import subprocess
     import numpy as np
+    from ffmpeg_normalize._cmd_utils import get_ffmpeg_exe
 
     speech_sig, speech_info = read_audio(source_speech_fn)
     duration, frame_count = math.floor(speech_sig.duration_seconds), math.floor(speech_sig.frame_count())
@@ -84,23 +85,83 @@ def apply_noise_to_speech(source_speech_fn, snrs, noise_wav_path, dest_fn=None):
     for noise_fn in noise_wav_path:
         #noise_fn = random.sample(noise_wav_path, 1)[0]
         print(f"Applying {noise_fn}...")
-        noise_sig, _ = read_audio(noise_fn, speech_sig.frame_rate, speech_sig.sample_width)
-        noise_sig = np.array(noise_sig.get_array_of_samples())
-        noise_sig = noise_sig.astype(np.float32)
+        noise_sig, noise_info = read_audio(noise_fn, speech_sig.frame_rate, speech_sig.sample_width)
+        
+        subnoise_fn = os.path.basename(noise_fn)
+        subnoise_fn = subnoise_fn.split('.')
+        subnoise_fn = f'subnoise_{".".join(subnoise_fn[:-1])}.{subnoise_fn[-1]}'
+        
+        precommand = []
+        print(f'Comparing {os.path.basename(noise_fn)} {noise_sig.duration_seconds} > {speech_sig.duration_seconds}')
+        if noise_sig.duration_seconds > speech_sig.duration_seconds:
+            start = max(0, int(math.floor(noise_sig.duration_seconds - speech_sig.duration_seconds - 1)))
+            if start < 2:
+                shutil.copy(noise_fn, subnoise_fn)
+            else:
+                start = random.sample([i for i in range(1, start)], 1)[0]
+                print(f'Adjust noise "{os.path.basename(noise_fn)}" to start time={start} secs')
+                precommand = [f'{get_ffmpeg_exe()}', '-y', '-ss', str(start), '-i', f'{os.path.abspath(noise_fn)}', '-to', str(speech_sig.duration_seconds), '-c', 'copy', f'{os.path.abspath(subnoise_fn)}']
+                print(f"Running ffmpeg pre-command: {' '.join(precommand)}")
+                p = subprocess.Popen(
+                    precommand,
+                    stdin=subprocess.PIPE,  # Apply stdin isolation by creating separate pipe.
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=False,
+                )
 
-        SNR = random.sample(snrs, 1)[0]    
-        weight = compute_speech_noise_factor(SNR, speech, total_vad_duration, noise_sig)
+                # simple running of command
+                stdout, stderr = p.communicate()
 
-        from ffmpeg_normalize._cmd_utils import get_ffmpeg_exe  
+                stdout = stdout.decode("utf8", errors="replace")
+                stderr = stderr.decode("utf8", errors="replace")
 
+                if p.returncode != 0:
+                    raise RuntimeError(f"Error running pre-command {precommand}: {str(stderr)}")
+        else:
+            shutil.copy(noise_fn, subnoise_fn)
+
+        noise_fn = f'{os.path.abspath(subnoise_fn)}'
+        noise_sig, _ = read_audio(subnoise_fn, speech_sig.frame_rate, speech_sig.sample_width)
+        noise_frames = np.array(noise_sig.get_array_of_samples())
+        noise_frames = noise_frames.astype(np.float32)
+        
+        SNR = random.sample(snrs, 1)[0]
+        precommand = []
+        subnoise_fn = os.path.basename(noise_fn)
+        subnoise_fn = subnoise_fn.split('.')
+        subnoise_fn = f'subnoise.{subnoise_fn[-1]}'
+        weight = compute_speech_noise_factor(SNR, speech, total_vad_duration, noise_frames)
+        precommand = [f'{get_ffmpeg_exe()}', '-y', '-i', f'{os.path.abspath(noise_fn)}', '-filter:a', f'volume={weight}', f'{os.path.abspath(subnoise_fn)}']
+        print(f"Running ffmpeg pre-command: {' '.join(precommand)}")
+        p = subprocess.Popen(
+            precommand,
+            stdin=subprocess.PIPE,  # Apply stdin isolation by creating separate pipe.
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=False,
+        )
+
+        # simple running of command
+        stdout, stderr = p.communicate()
+
+        stdout = stdout.decode("utf8", errors="replace")
+        stderr = stderr.decode("utf8", errors="replace")
+
+        if p.returncode == 0:
+            os.remove(noise_fn)
+            noise_fn = os.path.abspath(subnoise_fn)
+            noise_sig, _ = read_audio(subnoise_fn, speech_sig.frame_rate, speech_sig.sample_width)
+        else:
+            raise RuntimeError(f"Error running pre-command {precommand}: {str(stderr)}")
         
         if dest_fn is None:
-            command = [f'{get_ffmpeg_exe()}', '-y', '-i', f'"{os.path.abspath(source_speech_fn)}"', '-i', f'"{os.path.abspath(noise_fn)}"', '-filter_complex', f'"amix=inputs=2:duration=first:weights=1.0 {weight}:dropout_transition=0,dynaudnorm"', '-c:a', speech_info["codec_name"], '-b:a', f'{math.floor(int(speech_info["bit_rate"])/1000)}k', '-ac', speech_info["channels"], '-ar', speech_info["sample_rate"], '-f', speech_info["format_name"], '-', '| ']
+            command = [f'{get_ffmpeg_exe()}', '-y', '-i', f'"{os.path.abspath(source_speech_fn)}"', '-i', noise_fn, '-filter_complex', f'amix=inputs=2:duration=first:dropout_transition=0', '-c:a', speech_info["codec_name"], '-b:a', f'{math.floor(int(speech_info["bit_rate"])/1000)}k', '-ac', speech_info["channels"], '-ar', speech_info["sample_rate"], '-f', speech_info["format_name"], '-', '| ']
             return ' '.join(command)
 
         format = dest_fn.split('.')[-1]
         temp_fn = f'temp.{format}'
-        command = [f'{get_ffmpeg_exe()}', '-y', '-i', os.path.abspath(source_speech_fn), '-i', os.path.abspath(noise_fn), '-filter_complex', f'amix=inputs=2:duration=first:weights=1.0 {weight}:dropout_transition=0,dynaudnorm', '-c:a', speech_info["codec_name"], '-b:a', f'{min(8.0, math.floor(int(speech_info["bit_rate"])/1000))}k', '-ac', speech_info["channels"], '-ar', speech_info["sample_rate"], '-f', speech_info["format_name"], temp_fn]
+        command = [f'{get_ffmpeg_exe()}', '-y', '-i', os.path.abspath(source_speech_fn), '-i', noise_fn, '-filter_complex', f'amix=inputs=2:duration=first:dropout_transition=0', '-c:a', speech_info["codec_name"], '-b:a', f'{min(8.0, math.floor(int(speech_info["bit_rate"])/1000))}k', '-ac', speech_info["channels"], '-ar', speech_info["sample_rate"], '-f', speech_info["format_name"], temp_fn]
         
         #command.append(os.path.abspath(dest_fn))
         print(f"Running ffmpeg command: {' '.join(command)}")
@@ -125,6 +186,9 @@ def apply_noise_to_speech(source_speech_fn, snrs, noise_wav_path, dest_fn=None):
             shutil.move(temp_fn, dest_fn)
         else:
             raise RuntimeError(f"Error running command {command}: {str(stderr)}")
+
+        if subnoise_fn is not None and os.path.exists(subnoise_fn):
+            os.remove(subnoise_fn)
 
 if __name__ == "__main__":
     from glob import glob

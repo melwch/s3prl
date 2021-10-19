@@ -75,7 +75,7 @@ def get_audio_info(wav_fn, verbose=False):
     import os
     import soundfile as sf
     wav_info = sf.info(wav_fn)
-
+    
     codecs = {}
     with open(os.path.join("config", "codecs.info"), "r") as f:
         lines = f.readlines()
