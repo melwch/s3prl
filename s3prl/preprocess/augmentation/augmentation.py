@@ -47,7 +47,7 @@ def add_noise(command, dest_file, src_file, wav_info, info={},
     import random
     import os
 
-    snr = [25]
+    snrs = [25]
     no_id = True
     noise_id = 0
     num_noise_types = 1
@@ -55,7 +55,7 @@ def add_noise(command, dest_file, src_file, wav_info, info={},
     num_noise = len([name for name in os.listdir(noise_source) if name.endswith(".wav") and os.path.isfile(os.path.join(noise_source, name))])
     if config is not None:
         if "snr" in config:
-            snr = config['snr']
+            snrs = config['snr']
         if "id" in config:
             if isinstance(config['id'], (list)):
                 noise_id = config['id']
@@ -94,20 +94,21 @@ def add_noise(command, dest_file, src_file, wav_info, info={},
     else:
         noise_fns = []
         for fn in noise_wav_path:
+            SNR = random.sample(snrs, 1)[0]
             dir, fname = os.path.split(fn)
             if len(noise_fns) == 0:
                 noise_fns.append(dir)
-            noise_fns.append(fname)            
+            noise_fns.append(f'{fname}@{SNR}')            
         
         noise_fns = ",".join(noise_fns)        
         if python_command is None:
             from addnoise import apply_noise_to_speech
-            command += apply_noise_to_speech(src_file, snr, noise_wav_path)
+            command += apply_noise_to_speech(src_file, noise_wav_path)
         
-        snr = ",".join([str(s) for s in snr])
+        
         if python_command is not None:            
-            command += f'\n{python_command} addnoise.py -s {snr} {config["mode"]} "{noise_fns}" "{src_file}" "{dest_file}"\n'
-        info['snr'] = { 'SNRs': snr, 'mode': config['mode'], 'fns': noise_fns }
+            command += f'\n{python_command} addnoise.py {config["mode"]} "{noise_fns}" "{src_file}" "{dest_file}"\n'
+        info['snr'] = { 'mode': config['mode'], 'fns': noise_fns }
     
     return command
 

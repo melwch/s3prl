@@ -31,14 +31,14 @@ def compute_speech_noise_factor(SNR, src_audio, vad_duration, target_noise):
         
         noise_power = np.sum(target_noise ** 2) / len(target_noise)
         #noise_power = torch.linalg.vector_norm(speech_seg, ord=2) / noise_sig.shape[0]
-        snr = math.exp(SNR / 10)
-        #snr = 10 ** (SNR / 10.0)
+        #snr = math.exp(SNR / 10)
+        snr = 10 ** (SNR / 10.0)
         scale = 1 / np.sqrt(snr * noise_power / speech_power)
         #noise = noise / np.sqrt(scale)
-        print('noise scaling:', scale)
+        print('Noise scaling:', scale, 'Noise Power:', noise_power, 'Speech Power:', speech_power, 'snr:', snr, 'SNR:', SNR, 'VAD duration:', vad_duration)
         return scale
 
-def apply_noise_to_speech(source_speech_fn, snrs, noise_wav_path, dest_fn=None):
+def apply_noise_to_speech(source_speech_fn, noise_wav_path, dest_fn=None):
     import shutil
     import random, os
     import torch, math
@@ -46,46 +46,48 @@ def apply_noise_to_speech(source_speech_fn, snrs, noise_wav_path, dest_fn=None):
     import numpy as np
     from ffmpeg_normalize._cmd_utils import get_ffmpeg_exe
 
-    speech_sig, speech_info = read_audio(source_speech_fn)
-    duration, frame_count = math.floor(speech_sig.duration_seconds), math.floor(speech_sig.frame_count())
-    print(f'Before: {duration} secs, {frame_count} frames, sample width: {speech_sig.sample_width}')
-    #speech_sig, sr, wav_info = read_audio(args.source_file)    
-    #speech_sig, sr = sf.read(src_file)
+    for i, noise_fn in enumerate(noise_wav_path):
+        speech_sig, speech_info = read_audio(source_speech_fn)
+        duration, frame_count = math.floor(speech_sig.duration_seconds), math.floor(speech_sig.frame_count())
+        print(f'Applying noise {i+1}=> Noise: {os.path.basename(noise_fn)}, Before: {duration} secs, {frame_count} frames, sample width: {speech_sig.sample_width}')
+        #speech_sig, sr, wav_info = read_audio(args.source_file)    
+        #speech_sig, sr = sf.read(src_file)
 
-    speech = np.array(speech_sig.get_array_of_samples()).astype(np.float32)
-    
-    #source: https://github.com/snakers4/silero-vad
-    model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model='silero_vad', force_reload=False)
+        speech = np.array(speech_sig.get_array_of_samples()).astype(np.float32)
+        
+        #source: https://github.com/snakers4/silero-vad
+        model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model='silero_vad', force_reload=False)
 
-    (_, get_speech_ts_adaptive, _, _, _, _, _) = utils
+        (_, get_speech_ts_adaptive, _, _, _, _, _) = utils
 
-    num_steps = 4 # recommended 4 or 8
-    ms_per_window = 250
-    #num_samples_per_window = int(sample_rate / 1000 * ms_per_window)
-    num_samples_per_window = int(speech_sig.frame_rate / 1000 * ms_per_window)
-    step = int(num_samples_per_window / num_steps)
-    
-    speech_timestamps = get_speech_ts_adaptive(torch.from_numpy(speech), model,
-                                               # number of samples in each window, 
-                                               # our models were trained using 4000 
-                                               # samples (250 ms) per window, so this 
-                                               # is preferable value (lesser values 
-                                               # reduce quality)
-                                               num_samples_per_window=num_samples_per_window,
-                                               # step size in samples
-                                               step=step, 
-                                               visualize_probs=False)
+        num_steps = 4 # recommended 4 or 8
+        ms_per_window = 250
+        #num_samples_per_window = int(sample_rate / 1000 * ms_per_window)
+        num_samples_per_window = int(speech_sig.frame_rate / 1000 * ms_per_window)
+        step = int(num_samples_per_window / num_steps)
+        
+        speech_timestamps = get_speech_ts_adaptive(torch.from_numpy(speech), model,
+                                                # number of samples in each window, 
+                                                # our models were trained using 4000 
+                                                # samples (250 ms) per window, so this 
+                                                # is preferable value (lesser values 
+                                                # reduce quality)
+                                                num_samples_per_window=num_samples_per_window,
+                                                # step size in samples
+                                                step=step, 
+                                                visualize_probs=False)
 
-    total_vad_duration = 0
-    if len(speech_timestamps) > 0:
-        for speech_timestamp in speech_timestamps:
-            vad_duration = speech_timestamp['end'] - speech_timestamp['start'] + 1
-            total_vad_duration += vad_duration
+        total_vad_duration = 0
+        if len(speech_timestamps) > 0:
+            for speech_timestamp in speech_timestamps:
+                vad_duration = speech_timestamp['end'] - speech_timestamp['start'] + 1
+                total_vad_duration += vad_duration
 
-    for noise_fn in noise_wav_path:
         #noise_fn = random.sample(noise_wav_path, 1)[0]
-        print(f"Applying {noise_fn}...")
-        noise_sig, noise_info = read_audio(noise_fn, speech_sig.frame_rate, speech_sig.sample_width)
+        #print(f"Applying {noise_fn}...")
+        [noise_fn, SNR] = noise_fn.split('@')
+        SNR = float(SNR)
+        noise_sig, _ = read_audio(noise_fn, speech_sig.frame_rate, speech_sig.sample_width)
         
         subnoise_fn = os.path.basename(noise_fn)
         subnoise_fn = subnoise_fn.split('.')
@@ -126,7 +128,7 @@ def apply_noise_to_speech(source_speech_fn, snrs, noise_wav_path, dest_fn=None):
         noise_frames = np.array(noise_sig.get_array_of_samples())
         noise_frames = noise_frames.astype(np.float32)
         
-        SNR = random.sample(snrs, 1)[0]
+        #SNR = random.sample(snrs, 1)[0]
         precommand = []
         subnoise_fn = os.path.basename(noise_fn)
         subnoise_fn = subnoise_fn.split('.')
@@ -184,6 +186,7 @@ def apply_noise_to_speech(source_speech_fn, snrs, noise_wav_path, dest_fn=None):
             if os.path.exists(dest_fn):
                 os.remove(dest_fn)
             shutil.move(temp_fn, dest_fn)
+            source_speech_fn = dest_fn
         else:
             raise RuntimeError(f"Error running command {command}: {str(stderr)}")
 
@@ -203,7 +206,6 @@ if __name__ == "__main__":
     import os
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--snr', type=str, default=25, help='Signal Noise Ratio')
     parser.add_argument('mode', type=int, default=0, help='0 - Apply noise over entire audio with respect to total speech duration (default) OR \n1 - Apply noise on speech segments only with respect to individual segment duration')
     parser.add_argument('noise_file', type=str, help='Noise wav file')
     parser.add_argument('source_file', type=str, help='Source audio wav file')
@@ -212,8 +214,7 @@ if __name__ == "__main__":
     #print('args', args)
 
     # Voice activity detection
-    snrs = [float(snr) for snr in args.snr.split(',')]    
     noise_wav_path = args.noise_file.split(',')
     noise_wav_path = [os.path.join(noise_wav_path[0], noise_wav_path[i]) for i in range(1, len(noise_wav_path))]
 
-    apply_noise_to_speech(args.source_file, snrs, noise_wav_path, args.dest_file)
+    apply_noise_to_speech(args.source_file, noise_wav_path, args.dest_file)
