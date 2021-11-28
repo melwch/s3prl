@@ -4,7 +4,7 @@ clear
 #DEST_DIR="/media/m/F439-FA9D/workshop/callhome/adapt"
 #DATA_DIR="../../../../data_augmentation/sample"
 DATA_DIR="../../../../data_augmentation/wav/target"
-DEST_DIR="../../../../data_augmentation/wav"
+DEST_DIR="../../../../data_augmentation/wav/adapt"
 
 if [ -f $DEST_DIR ]; then
     rm -rf $DEST_DIR

@@ -95,7 +95,7 @@ if __name__ == "__main__":
                                      scheme['rir']['mixing_level'] <= 111), \
                                      "Please provide REVERB_MIXING_LEVEL within the range 80 and 111"
                     elif key == "REVERB_ID":
-                        scheme['rir']['id'] = int(value)
+                        scheme['rir']['id'] = value
                     elif key == "CLEAN_SET":
                         scheme["clean"] = min(1, max(0, float(value)))
                     elif key == "MINOR_DISTORTION_PERCENTAGE":

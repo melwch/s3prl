@@ -52,10 +52,17 @@ class Runner():
 
         if args.verbose:
             from utility.visualize_model import display_num_params
+            print('Upstream model')
             display_num_params(self.upstream.model)
 
         self.featurizer = self._get_featurizer()
         self.downstream = self._get_downstream()
+
+        if args.verbose:
+            from utility.visualize_model import display_num_params
+            print('Downstream model')
+            display_num_params(self.downstream.model)
+
         self.all_entries = [self.upstream, self.featurizer, self.downstream]
 
     def _load_weight(self, model, name):

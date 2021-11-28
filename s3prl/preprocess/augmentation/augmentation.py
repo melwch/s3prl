@@ -37,7 +37,8 @@ def mix_rir_package(destination: str, source: str):
 def valid_noise(wav_fn, src_info, verbose=False):
     from utils import get_audio_info
     wav_info = get_audio_info(wav_fn, verbose)
-    print(src_info.duration, '<', wav_info.duration)
+    if verbose:
+        print(wav_fn, src_info.duration, '<', wav_info.duration)
     return src_info.duration < wav_info.duration
 
 def add_noise(command, dest_file, src_file, wav_info, info={}, 
@@ -64,7 +65,8 @@ def add_noise(command, dest_file, src_file, wav_info, info={},
                 noise_id = config['id']
         if "ntypes" in config and no_id:
             num_noise_types = config['ntypes']
-    while noise_wav_path is None or any([not os.path.exists(fn) or (no_id and not valid_noise(fn, wav_info)) for fn in noise_wav_path]):
+    no_long_noise = False
+    while noise_wav_path is None or any([not os.path.exists(fn) or (no_id and not no_long_noise and not valid_noise(fn, wav_info)) for fn in noise_wav_path]):
         try:
             if isinstance(noise_id, (list)):
                 paths = []
@@ -80,8 +82,16 @@ def add_noise(command, dest_file, src_file, wav_info, info={},
                 else:
                     no_id = True
                 noise_id = None
-            elif no_id:
-                noise_wav_path = random.sample(glob(os.path.join(noise_source, '*.wav')), num_noise_types)
+            elif no_id: 
+                wavs = []               
+                for wav_fn in glob(os.path.join(noise_source, '*.wav')):
+                    if valid_noise(wav_fn, wav_info):
+                        wavs.append(wav_fn)
+                no_long_noise = len(wavs) < num_noise_types
+                if no_long_noise:
+                    print(f'****ALERT: source audio length {wav_info.duration} secs > noises')
+                    wavs = glob(os.path.join(noise_source, '*.wav'))
+                noise_wav_path = random.sample(wavs, num_noise_types)
             else:
                 noise_wav_path = glob(os.path.join(noise_source, noise_id + '_*.wav'))
         except:
@@ -91,7 +101,7 @@ def add_noise(command, dest_file, src_file, wav_info, info={},
 
     if noise_wav_path is None or any([not os.path.exists(fn) for fn in noise_wav_path]):
         raise FileExistsError("Noise file not found:", noise_wav_path)
-    else:
+    else: 
         noise_fns = []
         for fn in noise_wav_path:
             SNR = random.sample(snrs, 1)[0]
@@ -176,9 +186,12 @@ def add_rir(command, input_format, dest_fn, src_file, wav_info, info=None, rir_s
                 print(f"Using {rir_mode} mode, adding RIR {basis}{'' if src_file == '-' else ' to ' + os.path.basename(src_file)}")
             if src_file != '-': 
                 src_file = f'"{src_file}"'
+
             temp_fn = None
             if not dest_fn.startswith('-'):
-                temp_fn = f'"temp.{dest_fn.split(".")[-1]}"\n'
+                base_dir, temp_fn = os.path.split(dest_fn)
+                temp_fn = os.path.join(base_dir, f'rir_temp{os.path.splitext(temp_fn)[1]}')
+                temp_fn = f'"{temp_fn}"\n'
 
             if rir_mode == "AMIX":
                 subcommand = f"ffmpeg {'' if input_format is None else '-f ' + input_format + ' ' }-i {src_file} -i \"{rir_wav_path}\" -filter_complex '[0] [1] afir=dry={config['gain']}:wet={config['gain']} [reverb]; [0] [reverb] amix=inputs=2:weights=3 1' -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {output_format} -f {wav_info.format.lower()} {dest_fn if temp_fn is None else temp_fn}"
@@ -189,7 +202,7 @@ def add_rir(command, input_format, dest_fn, src_file, wav_info, info=None, rir_s
                 subcommand = f"ffmpeg {'' if input_format is None else '-f ' + input_format + ' ' }-i {src_file} -i \"{rir_wav_path}\" -filter_complex '[0] [1] afir=dry={config['gain']}:wet={config['gain']}' -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} {dest_fn if temp_fn is None else temp_fn}"
 
             if temp_fn is not None:
-                subcommand += f'mv "{temp_fn[:-1]}" "{dest_fn}"'
+                subcommand += f'mv {temp_fn[:-1]} "{dest_fn}"'
 
             if len(subcommand) > 0:
                 command += subcommand
@@ -300,7 +313,7 @@ def mix_cocktail(src_dir, dest_dir,
     start_index = 0
     end_index = 0
     for category, percent in zip(categories, scheme["distortions"]):
-        print(category, percent)
+        #print(category, percent)
         end_index = start_index if percent <= 0 else math.ceil(min(data_length, data_length * percent + start_index)) + 1
         if start_index < end_index:
             distortions[start_index:end_index] = [category] * (end_index - start_index + 1)
@@ -381,7 +394,7 @@ def mix_cocktail(src_dir, dest_dir,
 
         if 'rir' in scheme and scheme['rir'] is not None:
             _hasFFMPEG, command, output_format = add_rir(command, output_format,
-                                                         wav_fn if 'C' in scheme['noise']['insert'] else '- | ', wav_fn, wav_info,
+                                                         path if 'C' in scheme['noise']['insert'] else '- | ', wav_fn, wav_info,
                                                          info=info[fname], 
                                                          config=scheme['rir'], 
                                                          rir_source=reverdb_dir,
@@ -422,9 +435,15 @@ def mix_cocktail(src_dir, dest_dir,
                             print("Unknown codec specification:", ",".join(codec))
             
             if len(subcommand) > 0:
-                command += subcommand + f"ffmpeg -y -f {output_format} -i - -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path}\""
-                saved_to_file = True
+                temp_fn = None
+                if os.path.basename(input_fn) != os.path.basename(path):
+                    base_dir, temp_fn = os.path.split(path)
+                    temp_fn = os.path.join(base_dir, f'distortion_temp{os.path.splitext(temp_fn)[1]}')
+                command += subcommand + f"ffmpeg -y -f {output_format} -i - -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{path if temp_fn is None else temp_fn}\""
                 commands.append(command)
+                if temp_fn is not None:
+                    commands.append(f'mv "{temp_fn}" "{path}"')
+                saved_to_file = True
 
         if len(command) == 0:
                 dir, fname = os.path.split(path)
@@ -434,17 +453,18 @@ def mix_cocktail(src_dir, dest_dir,
                 #command = f"cp \"{wav_fn}\" \"{os.path.join(dir, fname + '_original.' + format)}\""
                 command = f"cp \"{wav_fn}\" \"{os.path.join(dir, fname + '.' + format)}\""
                 commands.append(command)
-        elif hasFFMPEG and not saved_to_file:
-            format = path.split('.')[-1]
-            temp_fn = f'temp.{format}'
-            if wav_fn != '-':
-                wav_fn = f'"{wav_fn}"'
-            command += f"ffmpeg -y {'-f ' + output_format + ' ' if len(command) > 0 else ''}-i {wav_fn if pickFromFile or len(command) == 0 else '-'} -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{temp_fn}\""
-            commands.append(command)
-            commands.append(f'if [ -f "{path}" ]; then\n\trm "{path}"\nfi')
-            commands.append(f'mv "{temp_fn}" "{path}"')
-        elif len(command) > 0:
-            commands.append(command)
+        elif not saved_to_file:
+            if hasFFMPEG:
+                base_dir, temp_fn = os.path.split(path)
+                temp_fn = os.path.join(base_dir, f'temp{os.path.splitext(temp_fn)[1]}')
+                if wav_fn != '-':
+                    wav_fn = f'"{wav_fn}"'
+                command += f"ffmpeg -y {'-f ' + output_format + ' ' if len(command) > 0 else ''}-i {wav_fn if pickFromFile or len(command) == 0 else '-'} -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {wav_info.format} \"{temp_fn}\""
+                commands.append(command)
+                commands.append(f'if [ -f "{path}" ]; then\n\trm "{path}"\nfi')
+                commands.append(f'mv "{temp_fn}" "{path}"')
+            elif len(command) > 0:
+                commands.append(command)
 
         if 'normalize' in scheme and 'insert' in scheme['normalize'] and 'H' in scheme['normalize']['insert']:
             command = normalize(path, path, wav_info, 
