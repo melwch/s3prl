@@ -49,12 +49,6 @@ class Runner():
         self.init_ckpt = torch.load(self.args.init_ckpt, map_location='cpu') if self.args.init_ckpt else {}
 
         self.upstream = self._get_upstream()
-
-        if args.verbose:
-            from utility.visualize_model import display_num_params
-            print('Upstream model')
-            display_num_params(self.upstream.model)
-
         self.featurizer = self._get_featurizer()
         self.downstream = self._get_downstream()
 
@@ -64,6 +58,7 @@ class Runner():
             display_num_params(self.downstream.model)
 
         self.all_entries = [self.upstream, self.featurizer, self.downstream]
+
 
     def _load_weight(self, model, name):
         init_weight = self.init_ckpt.get(name)
@@ -378,15 +373,15 @@ class Runner():
             split = self.args.evaluate_split
             tempdir = tempfile.mkdtemp()
             logger = SummaryWriter(tempdir)
-        
+
         # fix seed to guarantee the same evaluation protocol across steps 
         random.seed(self.args.seed)
         np.random.seed(self.args.seed)
         torch.manual_seed(self.args.seed)
-        if self.args.device.lower() != "cpu" and torch.cuda.is_available():
+        if torch.cuda.is_available():
             torch.cuda.manual_seed_all(self.args.seed)
-            with torch.cuda.device(self.args.device):
-                torch.cuda.empty_cache()
+        with torch.cuda.device(self.args.device):
+            torch.cuda.empty_cache()
 
         # record original train/eval states and set all models to eval
         trainings = []
@@ -413,31 +408,20 @@ class Runner():
                 )
                 batch_ids.append(batch_id)
 
-        total_batch_num = len(dataloader)
         save_names = self.downstream.model.log_records(
             split,
             records = records,
             logger = logger,
             global_step = global_step,
             batch_ids = batch_ids,
-            total_batch_num = total_batch_num,
+            total_batch_num = len(dataloader),
         )
         batch_ids = []
-
-        summary_fn = os.path.join(self.args.expdir, "..", "summary.csv")
-        headers = not os.path.exists(summary_fn)
-        with open(summary_fn, "a") as f:
-            if headers:
-                f.write("experiment_id,average_accuracy,average_der,global_step,total_batch_num\n")
-                headers = False
-            f.write(f"{self.args.expname},{records['average_acc']},{records['average_der']},{global_step},{total_batch_num}\n")
-
         records = defaultdict(list)
 
         # prepare back to training
-        if self.args.device.lower() != "cpu" and torch.cuda.is_available():
-            with torch.cuda.device(self.args.device):
-                torch.cuda.empty_cache()
+        with torch.cuda.device(self.args.device):
+            torch.cuda.empty_cache()
 
         for entry, training in zip(self.all_entries, trainings):
             if training:
