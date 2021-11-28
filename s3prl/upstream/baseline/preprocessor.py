@@ -112,17 +112,27 @@ class OnlinePreprocessor(torch.nn.Module):
             'cmvn': cmvn
         }
 
-    def forward(self, wavs=None, feat_list=None):
+    def forward(self, wavs=None, feat_list=None, wavs_len=None):
         # wavs: (*, channel_size, max_len)
         # feat_list, mam_list: [{feat_type: 'mfcc', channel: 0, log: False, delta: 2, cmvn: 'True'}, ...]
+        # wavs_len: [len1, len2, ...]
+
         feat_list = self._check_list(feat_list)
         if wavs is None:
             max_channel_id = max([int(args['channel']) if 'channel' in args else 0 for args in feat_list])
             wavs = self._pseudo_wavs[0].view(1, 1, -1).repeat(1, max_channel_id + 1, 1)
         assert wavs.dim() >= 3
 
-        wavs_len = wavs.bool().sum(dim=-1).view(-1).tolist()
-        wavs = pad_sequence([wav[:wav_len].transpose(-1, -2) for wav, wav_len in zip(wavs, wavs_len)], batch_first=True).transpose(-1, -2)
+        # find length of wavs from padded tensor
+        if wavs_len is None:
+            wavs_len = []
+            for wav in wavs:
+                nonzero_index = wav.nonzero()
+                if len(nonzero_index) == 0:
+                    wavs_len.append(wav.size(-1)) # when all elements are zero
+                else:
+                    wavs_len.append(nonzero_index[:, -1].max().item()+1)
+            wavs = pad_sequence([wav[:wav_len].transpose(-1, -2) for wav, wav_len in zip(wavs, wavs_len)], batch_first=True).transpose(-1, -2)
 
         wav = wavs.unsqueeze(2)
         shape = wavs.size()

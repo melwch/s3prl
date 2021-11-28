@@ -10,7 +10,7 @@ We develop several downstream tasks for evaluating SSL models, each of them is d
 
 #### I. General requirement
 
-1. [Clone the repository and install dependencies](../README.md#installation)
+1. [Clone the repository and install dependencies](../../README.md#installation)
 2. See the [General Usage](#general-usage) to have a sense on the conceptual usage
 
 #### II A. Run the developed tasks
@@ -148,6 +148,8 @@ python3 $distributed run_downstream.py -m train -n ExpName -u fbank -d example \
     -o config.runner.gradient_accumulate_steps=2
 ```
 
+Note that currently PyTorch might not automatically terminate all spawned processes when this training terminates or crashes, and can lead to "Out of GPU memory" or "Address already used" error if you directly launch a new DDP training. Since hardware resources are not yet released properly in the previous run. You can use `pkill -f "your previous command"` to terminate all related processes.
+
 #### Resume training
 
 ```bash
@@ -159,13 +161,8 @@ python3 $distributed run_downstream.py -m train -e [ckpt]
 #### Fault-tolerant training
 
 ```bash
-for i in $(seq 1 100); do
-    python3 $distributed run_downstream.py -m train -n ExpName -u fbank -d example \
-        -o config.runner.gradient_accumulate_steps=2 -a
-    # When one of the spawned process dies, sometimes not all processes are terminated synchronizely.
-    # You might need to ensure all the spawned process are killed here.
-    # `killall` linux command is suitable for this.
-done
+./run_while.sh python3 $distributed run_downstream.py -m train -n ExpName \
+    -u fbank -d example -a -o config.runner.gradient_accumulate_steps=2
 ```
 
 ## Test a checkpoint
@@ -226,9 +223,9 @@ docker run --gpus all -it -P -v /data/lewis/superb:/app/data -e "HF_USERNAME=use
 
 Each downstream task is defined by a **self-contained** folder under this [downstream](./) folder, like the task ASR is defined in [downstream/asr](./asr). Once a new folder is placed under this [downstream](./) folder, says `downstream/blabla/`, you can specify to run this new downstream task with `-d blabla` option in [run_downstream.py](../run_downstream.py) script.
 
-By **self-contained** we mean there should be all the downstream specific materials under your task folder, including the definition for dataset, datalader,model, and loss. How to define these materials are completely free, while the only requirement is to provide an `expert.py` file with an `DownstreamExpert` **nn.module** at the root of your downstream folder, where 3 object methods are implemented: `get_dataloader`, `forward`, and `log_records`.
+By **self-contained** we mean there should be all the downstream specific materials under your task folder, including the definition for dataset, dataloader, model, and loss. How to define these materials are completely free, while the only requirement is to provide an `expert.py` file with an `DownstreamExpert` **nn.module** at the root of your downstream folder, where 3 object methods are implemented: `get_dataloader`, `forward`, and `log_records`.
 
-The fastest way to know how the framework works is to run a minimum example, so we provide a pseudo task [downstream/example/](./example/), which can always be ran up by:
+The fastest way to know how the framework works is to run a minimum example, so we provide a pseudo task [downstream/example/](./example/), which can be always ran up by:
 
 ```bash
 python3 run_downstream.py -u fbank -d example -n HelloWorld
@@ -238,7 +235,7 @@ Hence, you can refer to [downstream/example/expert.py](./example/expert.py) for 
 
 #### Note 1
 
-Please use _relative import_ in your downstream folder, in case we might want to rename or move the location for the `downstream` folder in future.
+Please use _relative import_ in your downstream folder, in case we might want to rename or move the location for the `downstream` folder in the future.
 
 #### Note 2
 

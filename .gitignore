@@ -151,3 +151,9 @@ cocktail.json
 *.tar
 *.h5
 *.p
+*.scp
+utt2spk
+spk2utt
+experiment
+*.tar.gz
+*.tsv

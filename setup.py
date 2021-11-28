@@ -8,7 +8,7 @@ here = pathlib.Path(__file__).parent.resolve()
 long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 requirements = [
-    "torch>=1.7.0",
+    "torch>=1.7.0, !=1.10.0",
     "torchaudio>=0.7.0",
     "torchvision>=0.8.0",
     "joblib>=0.12.4",
@@ -17,9 +17,9 @@ requirements = [
     "scikit-learn>=0.23.2",
     "PyYAML>=5.4",
     "tqdm>=4.56.0",
-    "numpy>=1.19.5",
+    "numpy>=1.19.5, <1.21",
     "pandas>=1.1.5",
-    "tensorboardX>=1.9",
+    "tensorboardX>=1.9, <2.3",
     "matplotlib>=3.3.4",
     "Pillow>=6.2.2",
     "numba>=0.48",
@@ -29,6 +29,7 @@ requirements = [
     "transformers>=4.10.0,<5.0",
     "dtw-python==1.1.6",
     "asteroid==0.4.4",
+    "sacrebleu>=2.0.0",
     "kaldi_io",
     "h5py",
     "sox",
@@ -160,7 +161,7 @@ setup(
     #
     #   py_modules=["my_module"],
     #
-    packages=find_packages(include=["s3prl.*"]),  # Required
+    packages=find_packages(include=["s3prl*"]),  # Required
 
     # Specify which Python versions you support. In contrast to the
     # 'Programming Language' classifiers above, 'pip install' will check this
