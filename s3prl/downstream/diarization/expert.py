@@ -111,11 +111,19 @@ class DownstreamExpert(nn.Module):
                 3. directly loaded by torchaudio
         """
         if not hasattr(self, f"{mode}_dataset"):
-            dataset = DiarizationDataset(
-                mode,
-                self.loaderrc[f"{mode}_dir"],
-                **self.datarc,
-            )
+            if 'wav_dir' in self.loaderrc:
+                dataset = DiarizationDataset(
+                    mode,
+                    self.loaderrc[f"{mode}_dir"],
+                    wav_dir=self.loaderrc['wav_dir'],
+                    **self.datarc,
+                )
+            else:
+                dataset = DiarizationDataset(
+                    mode,
+                    self.loaderrc[f"{mode}_dir"],
+                    **self.datarc,
+                )
             setattr(self, f"{mode}_dataset", dataset)
 
         if mode == "train":
@@ -254,7 +262,6 @@ class DownstreamExpert(nn.Module):
 
         # get the best label permutation
         label_perm = get_label_perm(labels, perm_idx, perm_list)
-
         (
             correct,
             num_frames,

@@ -69,6 +69,7 @@ class DiarizationDataset(Dataset):
         self,
         mode,
         data_dir,
+        wav_dir=None,
         dtype=np.float32,
         chunk_size=2000,
         frame_shift=256,
@@ -82,6 +83,7 @@ class DiarizationDataset(Dataset):
         super(DiarizationDataset, self).__init__()
 
         self.mode = mode
+        self.wav_dir = wav_dir
         self.data_dir = data_dir
         self.dtype = dtype
         self.chunk_size = chunk_size
@@ -91,7 +93,7 @@ class DiarizationDataset(Dataset):
         self.chunk_indices = [] if mode != "test" else {}
         self.label_delay = label_delay
 
-        self.data = KaldiData(self.data_dir)
+        self.data = KaldiData(self.data_dir, self.wav_dir)
 
         total_len = 0
         # make chunk indices: filepath, start_frame, end_frame
@@ -239,9 +241,10 @@ class DiarizationDataset(Dataset):
 class KaldiData:
     """This class holds data in kaldi-style directory."""
 
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, wav_dir=None):
         """Load kaldi data directory."""
         self.data_dir = data_dir
+        self.wav_dir = wav_dir
         self.segments = self._load_segments_rechash(
             os.path.join(self.data_dir, "segments")
         )
@@ -309,7 +312,7 @@ class KaldiData:
         if wav_rxfilename.endswith("|"):
             # input piped command
             p = subprocess.Popen(
-                wav_rxfilename[:-1],
+                wav_rxfilename[:-1] if self.wav_dir is None else os.path.join(self.wav_dir, wav_rxfilename[:-1]),
                 shell=True,
                 stdout=subprocess.PIPE,
             )
@@ -326,7 +329,9 @@ class KaldiData:
             data = data[start:end]
         else:
             # normal wav file
-            data, samplerate = sf.read(wav_rxfilename, start=start, stop=end)
+            data, samplerate = sf.read(wav_rxfilename if self.wav_dir is None else os.path.join(self.wav_dir, wav_rxfilename), 
+                                       start=start, 
+                                       stop=end)
         return data, samplerate
 
     def _load_utt2spk(self, utt2spk_file):
