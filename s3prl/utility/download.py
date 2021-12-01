@@ -8,7 +8,8 @@ import gdown
 
 def _download(filename, url, refresh, agent):
     dirpath = f'{torch.hub.get_dir()}/s3prl_cache'
-    os.makedirs(dirpath, exist_ok=True)
+    if not os.path.exists(dirpath):
+        os.makedirs(dirpath, exist_ok=True)
     filepath = f'{dirpath}/{filename}'
     with FileLock(filepath + ".lock"):
         if not os.path.isfile(filepath) or refresh:
