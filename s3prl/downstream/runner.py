@@ -446,14 +446,26 @@ class Runner():
 
         batch_ids = []
         records = defaultdict(list)
+        print('max_wavs_per_load', self.args.max_wavs_per_load)
+        batch_size = self.args.max_wavs_per_load
         for batch_id, (wavs, *others) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc=split, total=evaluate_steps)):
             if batch_id > evaluate_steps:
                 break
 
-            wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
-            with torch.no_grad():
-                features = self.upstream.model(wavs)
-                features = self.featurizer.model(wavs, features)
+            with torch.inference_mode():
+                #wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
+                features = []
+                #print('wavs', len(wavs))
+                for i in range(0, len(wavs), batch_size):
+                    _wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs[i:i + batch_size]]
+                    #print('sub_wavs', len(_wavs), _wavs[0].shape)  
+                    _features = self.upstream.model(_wavs)
+                    _features = self.featurizer.model(_wavs, _features)
+                    #print('sub_features', len(_features), _features[0].shape)                    
+                    del _wavs
+                    _wavs = None
+                    features.extend(_features)
+                #print('features', len(features), features[0].shape)
                 self.downstream.model(
                     split,
                     features, *others,
@@ -461,6 +473,10 @@ class Runner():
                     batch_id = batch_id,
                 )
                 batch_ids.append(batch_id)
+                del _features
+                _features = None
+                del features
+                features = None
 
         save_names = self.downstream.model.log_records(
             split,
