@@ -446,7 +446,6 @@ class Runner():
 
         batch_ids = []
         records = defaultdict(list)
-        print('max_wavs_per_load', self.args.max_wavs_per_load)
         batch_size = self.args.max_wavs_per_load
         for batch_id, (wavs, *others) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc=split, total=evaluate_steps)):
             if batch_id > evaluate_steps:
