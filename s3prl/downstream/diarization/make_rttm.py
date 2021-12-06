@@ -32,6 +32,7 @@ with open(args.out_rttm_file, "w") as wf:
     for filepath in filepaths:
         session, _ = os.path.splitext(os.path.basename(filepath))
         data = h5py.File(filepath, "r")
+        print(f'T_hat, th_{args.threshold:,.2f}, med_{args.median:,.2f}:', np.min(data["T_hat"][:]), np.max(data["T_hat"][:]), np.mean(data["T_hat"][:]))
         a = np.where(data["T_hat"][:] > args.threshold, 1, 0)
         if args.median > 1:
             a = medfilt(a, (args.median, 1))
@@ -46,7 +47,8 @@ with open(args.out_rttm_file, "w") as wf:
                         session,
                         s * factor,
                         (e - s) * factor,
-                        session + "_" + str(spkid),
+                        str(spkid+1),
+                        #session + "_" + str(spkid),
                     ),
                     file=wf,
                 )

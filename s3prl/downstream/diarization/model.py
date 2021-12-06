@@ -20,7 +20,7 @@ import torch.nn as nn
 class Model(nn.Module):
     def __init__(self, input_dim, output_class_num, rnn_layers, hidden_size, **kwargs):
         super(Model, self).__init__()
-
+        print('Number of output classes:', output_class_num)
         # init attributes
         self.use_rnn = rnn_layers > 0
         if self.use_rnn:

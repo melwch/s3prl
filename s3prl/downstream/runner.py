@@ -16,6 +16,7 @@ from tqdm import tqdm
 from tensorboardX import SummaryWriter
 from torch.utils.data import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch import nn
 from torch.distributed import is_initialized, get_rank, get_world_size
 
 from s3prl import hub
@@ -26,6 +27,8 @@ from s3prl.upstream.interfaces import Featurizer
 from s3prl.utility.helper import is_leader_process, get_model_state, show, defaultdict
 
 from huggingface_hub import HfApi, HfFolder, Repository
+
+from s3prl.downstream.model import StreamlineChannel
 
 SAMPLE_RATE = 16000
 
@@ -91,36 +94,52 @@ class Runner():
         self.config = config
         self.init_ckpt = torch.load(self.args.init_ckpt, map_location='cpu') if self.args.init_ckpt else {}
 
+        self.run_distributed = False
+        self.ngpus = torch.cuda.device_count()
+        self.preprocess_multichannel = self.args.process_multichannel
+        
         self.upstream = self._get_upstream()
         self.featurizer = self._get_featurizer()
         self.downstream = self._get_downstream()
 
         if args.verbose:
             from utility.visualize_model import display_num_params
+            print('Upstream model')
+            display_num_params(self.upstream.model)
+            print('Featurizer model')
+            display_num_params(self.featurizer.model)
             print('Downstream model')
             display_num_params(self.downstream.model)
 
-        self.all_entries = [self.upstream, self.featurizer, self.downstream]
+            print('Preprocess multi-channel mode:', self.preprocess_multichannel)
 
+        self.all_entries = [self.upstream, self.featurizer, self.downstream]
+        self.preprocess = None
+        self.preprocess_optimizer = None
 
     def _load_weight(self, model, name):
         init_weight = self.init_ckpt.get(name)
         if init_weight:
             show(f'[Runner] - Loading {name} weights from the previous experiment')
-            model.load_state_dict(init_weight)
-
+            try:
+                model.load_state_dict(init_weight)
+            except:
+                import sys, traceback
+                traceback.print_exception(*sys.exc_info())
+                print(model)
 
     def _init_model(self, model, name, trainable, interfaces=None):
         for interface in interfaces or []:
             assert hasattr(model, interface), interface
 
         self._load_weight(model, name)
+        self.run_distributed = is_initialized()
 
-        if is_initialized() and trainable and any((p.requires_grad for p in model.parameters())):
+        if self.run_distributed and trainable and any((p.requires_grad for p in model.parameters())):
             model = DDP(model, device_ids=[self.args.local_rank], find_unused_parameters=True)
             for interface in interfaces or []:
                 setattr(model, interface, getattr(model.module, interface))
-
+        
         return ModelEntry(model, name, trainable, interfaces)
 
 
@@ -227,8 +246,67 @@ class Runner():
         with open(os.path.join(path, "README.md"), "w") as f:
             f.write(model_card)
 
+    def _preprocess_multichannel(self, wavs, labels=None, lengths=None, device='cpu'):
+        _wavs = []
+        _labels = labels if self.preprocess_multichannel != 'split' else []
+        _lengths = lengths if self.preprocess_multichannel != 'split' else []
+        if self.preprocess_multichannel == 'linear' or self.preprocess_multichannel == 'conv':
+            if self.preprocess is None:
+                self.preprocess = StreamlineChannel(wavs[0].shape[-1], self.preprocess_multichannel, self.args.verbose)
+                self._load_weight(self.preprocess, 'Preprocess')
+                self.preprocess = self.preprocess.to(device)
+
+                if self.args.mode == 'train':                
+                    self.preprocess_optimizer = get_optimizer([self.preprocess], self.config['runner']['total_steps'], { 'name': 'Adam', 'lr': 1e-4 })
+                    self._load_weight(self.preprocess_optimizer, 'Preprocess_optimizer')
+
+            if self.args.mode == 'train':
+                self.preprocess.train()
+                wavs = [torch.FloatTensor(wav).to(device).permute(1, 0).unsqueeze(0) for wav in wavs]
+                _wavs = self.preprocess(wavs)
+            else:
+                with torch.inference_mode():
+                    self.preprocess.eval()
+                    wavs = [torch.FloatTensor(wav).to(device).permute(1, 0).unsqueeze(0) for wav in wavs]
+                    _wavs = self.preprocess(wavs)
+        else:
+            for i, wav in enumerate(wavs):
+                if len(wav.shape) == 1:
+                    _wavs.append(wav)
+                elif self.preprocess_multichannel == 'mono':
+                    _wavs.append(np.mean(wav, axis=-1))
+                elif self.preprocess_multichannel == 'split':
+                    for channel in range(wav.shape[-1]):
+                        _wavs.append(wav[:, channel])
+                        if labels is not None:
+                            _labels.append(labels[i])
+                        if lengths is not None:
+                            _lengths.append(lengths[i])
+                else:
+                    _wavs.append(wav[:, 0])
+
+            if labels is not None and lengths is not None and self.preprocess_multichannel == 'split':
+                indices = list(range(len(_labels)))
+                random.shuffle(indices)
+                wavs = []
+                labels = []
+                lengths = []
+                for i in indices:
+                    wavs.append(_wavs[i])
+                    labels.append(_labels[i])
+                    lengths.append(_lengths[i])
+                _wavs = wavs
+                _labels = labels
+                _lengths = lengths
+
+            _wavs = [torch.FloatTensor(wav).to(device) for wav in _wavs]
+
+        return _wavs, _labels, _lengths
 
     def train(self):
+        #print('Arguments:', self.args)
+        #print('Config:', self.config)
+        import sys
         # trainable parameters and train/eval mode
         trainable_models = []
         trainable_paras = []
@@ -265,9 +343,15 @@ class Runner():
         if is_leader_process():
             logger = SummaryWriter(self.args.expdir)
 
+        ngpus = None
         batch_ids = []
         backward_steps = 0
         records = defaultdict(list)
+        batch_size = self.args.max_wavs_per_load
+        if self.upstream.trainable:
+            ngpus = torch.cuda.device_count()
+            print(f"Batch size:", batch_size)
+            print(f"Num of GPUs:", ngpus)
         epoch = self.init_ckpt.get('Epoch', 0)
         train_split = self.config['runner'].get("train_dataloader", "train")
         while pbar.n < pbar.total:
@@ -287,15 +371,17 @@ class Runner():
                     if pbar.n >= pbar.total:
                         break
                     global_step = pbar.n + 1
-
-                    wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
+                    #print(len(wavs), wavs[0].shape)
+                    
+                    _wavs, others[0], others[1] = self._preprocess_multichannel(wavs, others[0], others[1], device=self.args.device)
+                    #_wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
                     if self.upstream.trainable:
-                        features = self.upstream.model(wavs)
+                        features = self.upstream.model(_wavs)
                     else:
                         with torch.no_grad():
-                            features = self.upstream.model(wavs)
-                    features = self.featurizer.model(wavs, features)
-
+                            features = self.upstream.model(_wavs)
+                    features = self.featurizer.model(_wavs, features)
+                    
                     if specaug:
                         features, _ = specaug(features)
 
@@ -303,16 +389,24 @@ class Runner():
                         train_split,
                         features, *others,
                         records = records,
+                        wavs = wavs,
                     )
                     batch_ids.append(batch_id)
-
                     gradient_accumulate_steps = self.config['runner'].get('gradient_accumulate_steps')
                     (loss / gradient_accumulate_steps).backward()
                     del loss
 
+                    while len(features) > 0:
+                        del features[0]
+                    while len(_wavs) > 0:
+                        del _wavs[0]
+                    features = None
+                    _wavs = None
                 except RuntimeError as e:
                     if 'CUDA out of memory' in str(e):
+                        import traceback
                         print(f'[Runner] - CUDA out of memory at step {global_step}')
+                        traceback.print_exception(*sys.exc_info())
                         if is_initialized():
                             raise
                         with torch.cuda.device(self.args.device):
@@ -336,6 +430,9 @@ class Runner():
                     print(f'[Runner] - grad norm is NaN at step {global_step}')
                 else:
                     optimizer.step()
+                    if self.preprocess_optimizer is not None:
+                        self.preprocess_optimizer.step()
+                        self.preprocess_optimizer.zero_grad()
                 optimizer.zero_grad()
 
                 # adjust learning rate
@@ -387,6 +484,10 @@ class Runner():
                         'Config': self.config,
                     }
 
+                    if self.preprocess is not None:
+                        all_states['Preprocess'] = self.preprocess.state_dict()
+                        all_states['Preprocess_optimizer'] = self.preprocess_optimizer.state_dict()
+
                     for entry in self.all_entries:
                         if entry.trainable:
                             all_states[entry.name] = get_model_state(entry.model)
@@ -405,6 +506,8 @@ class Runner():
 
                 pbar.update(1)
             epoch += 1
+            del dataloader
+            dataloader = None
 
         pbar.close()
 
@@ -413,93 +516,103 @@ class Runner():
         if is_leader_process():
             logger.close()
 
-
     def evaluate(self, split=None, logger=None, global_step=0):
         """evaluate function will always be called on a single process even during distributed training"""
+        with torch.inference_mode():
+            # When this member function is called directly by command line
+            not_during_training = split is None and logger is None and global_step == 0
+            if not_during_training:
+                split = self.args.evaluate_split
+                tempdir = tempfile.mkdtemp()
+                logger = SummaryWriter(tempdir)
 
-        # When this member function is called directly by command line
-        not_during_training = split is None and logger is None and global_step == 0
-        if not_during_training:
-            split = self.args.evaluate_split
-            tempdir = tempfile.mkdtemp()
-            logger = SummaryWriter(tempdir)
+            # fix seed to guarantee the same evaluation protocol across steps 
+            random.seed(self.args.seed)
+            np.random.seed(self.args.seed)
+            torch.manual_seed(self.args.seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(self.args.seed)
+                with torch.cuda.device(self.args.device):
+                    torch.cuda.empty_cache()
 
-        # fix seed to guarantee the same evaluation protocol across steps 
-        random.seed(self.args.seed)
-        np.random.seed(self.args.seed)
-        torch.manual_seed(self.args.seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(self.args.seed)
-            with torch.cuda.device(self.args.device):
-                torch.cuda.empty_cache()
+            # record original train/eval states and set all models to eval
+            trainings = []
+            for entry in self.all_entries:
+                trainings.append(entry.model.training)
+                entry.model.eval()
 
-        # record original train/eval states and set all models to eval
-        trainings = []
-        for entry in self.all_entries:
-            trainings.append(entry.model.training)
-            entry.model.eval()
+            # prepare data
+            #print('split', split)
+            dataloader = self.downstream.model.get_dataloader(split)
+            evaluate_ratio = float(self.config["runner"].get("evaluate_ratio", 1))
+            evaluate_steps = round(len(dataloader) * evaluate_ratio)
 
-        # prepare data
-        dataloader = self.downstream.model.get_dataloader(split)
-        evaluate_ratio = float(self.config["runner"].get("evaluate_ratio", 1))
-        evaluate_steps = round(len(dataloader) * evaluate_ratio)
+            batch_ids = []
+            records = defaultdict(list)
+            batch_size = self.args.max_wavs_per_load
+            #dataloader.dataset.clear_history()
+            for batch_id, (wavs, *others) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc=split, total=evaluate_steps)):
+                if batch_id > evaluate_steps:
+                    break
 
-        batch_ids = []
-        records = defaultdict(list)
-        batch_size = self.args.max_wavs_per_load
-        for batch_id, (wavs, *others) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc=split, total=evaluate_steps)):
-            if batch_id > evaluate_steps:
-                break
-
-            with torch.inference_mode():
                 #wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
+                wavs, others[0], others[1] = self._preprocess_multichannel(wavs, others[0], others[1], device=self.args.device)
                 features = []
-                #print('wavs', len(wavs))
                 for i in range(0, len(wavs), batch_size):
-                    _wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs[i:i + batch_size]]
-                    #print('sub_wavs', len(_wavs), _wavs[0].shape)  
-                    _features = self.upstream.model(_wavs)
-                    _features = self.featurizer.model(_wavs, _features)
-                    #print('sub_features', len(_features), _features[0].shape)                    
-                    del _wavs
-                    _wavs = None
-                    features.extend(_features)
+                    try:
+                        _wavs = wavs[i:i + batch_size]
+                        #_wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs[i:i + batch_size]]
+                        #print('sub_wavs', len(_wavs), _wavs[0].shape)
+                        _features = self.upstream.model(_wavs)
+                        _features = self.featurizer.model(_wavs, _features)
+                        #print('sub_features', len(_features), _features[0].shape)                    
+                        features.extend(_features)
+                    except:                        
+                        import sys, traceback
+                        traceback.print_exception(*sys.exc_info())
+                        print(f'sub_wavs ({batch_id}/{i}/{len(wavs)}/{batch_size}):', len(_wavs), _wavs[0].shape, dataloader.dataset.history)
+                        for j, wav in enumerate(_wavs):
+                            print(f'{j}:', wav.shape)
+                        exit(1)
                 #print('features', len(features), features[0].shape)
                 self.downstream.model(
                     split,
                     features, *others,
                     records = records,
                     batch_id = batch_id,
+                    wavs = wavs
                 )
+                del wavs
+                wavs = None
                 batch_ids.append(batch_id)
                 del _features
                 _features = None
                 del features
                 features = None
 
-        save_names = self.downstream.model.log_records(
-            split,
-            records = records,
-            logger = logger,
-            global_step = global_step,
-            batch_ids = batch_ids,
-            total_batch_num = len(dataloader),
-        )
-        batch_ids = []
-        records = defaultdict(list)
+            save_names = self.downstream.model.log_records(
+                split,
+                records = records,
+                logger = logger,
+                global_step = global_step,
+                batch_ids = batch_ids,
+                total_batch_num = len(dataloader),
+            )
+            batch_ids = []
+            records = defaultdict(list)
 
-        # prepare back to training
-        if torch.cuda.is_available():
-            with torch.cuda.device(self.args.device):
-                torch.cuda.empty_cache()
+            # prepare back to training
+            if torch.cuda.is_available():
+                with torch.cuda.device(self.args.device):
+                    torch.cuda.empty_cache()
 
-        for entry, training in zip(self.all_entries, trainings):
-            if training:
-                entry.model.train()
+            for entry, training in zip(self.all_entries, trainings):
+                if training:
+                    entry.model.train()
 
-        if not_during_training:
-            logger.close()
-            shutil.rmtree(tempdir)
+            if not_during_training:
+                logger.close()
+                shutil.rmtree(tempdir)
 
         return [] if type(save_names) is not list else save_names
 
@@ -513,6 +626,8 @@ class Runner():
         else:
             wav, sr = torchaudio.load(str(filepath))
             assert sr == SAMPLE_RATE, sr
+
+        *wav, _, _ = self._preprocess_multichannel([wav], device=self.args.device)
         wavs = [wav.view(-1).to(self.args.device)]
 
         for entry in self.all_entries:

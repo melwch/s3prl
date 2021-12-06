@@ -80,7 +80,13 @@ def get_downstream_args():
 
     # options
     parser.add_argument('--seed', default=1337, type=int)
-    parser.add_argument('--max_wavs_per_load', default=32, type=int)
+    parser.add_argument('-max', '--max_wavs_per_load', default=32, type=int)
+    parser.add_argument('-pmc', '--process_multichannel', default='first', help="Options to preprocess multi-channel audio input "
+        '"first": use first channel (DEFAULT), '
+        '"mono": convert channels to single channel using mean, '
+        '"split": use individual channel, '
+        '"linear": convert to single channel using linear layer, '
+        '"conv": convert to single channel using convolution layer')
     parser.add_argument('--device', default='cuda', help='model.to(device)')
     parser.add_argument('--cache_dir', help='The cache directory for pretrained model downloading')
     parser.add_argument('--verbose', action='store_true', help='Print model infomation')

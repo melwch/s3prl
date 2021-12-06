@@ -91,6 +91,7 @@ class DiarizationDataset(Dataset):
         self.subsampling = subsampling
         self.n_speakers = num_speakers
         self.chunk_indices = [] if mode != "test" else {}
+        self.history = []
         self.label_delay = label_delay
 
         self.data = KaldiData(self.data_dir, self.wav_dir)
@@ -100,7 +101,7 @@ class DiarizationDataset(Dataset):
         for rec in self.data.wavs:
             data_len = int(self.data.reco2dur[rec] * rate / frame_shift)
             data_len = int(data_len / self.subsampling)
-            total_len += data_len
+            total_len = total_len + self.data.reco2dur[rec]
             if mode == "test":
                 self.chunk_indices[rec] = []
             if mode != "test":
@@ -122,12 +123,15 @@ class DiarizationDataset(Dataset):
                     )
 
         if mode != "test":
-            print(f"{len(self.chunk_indices)} chunks, {total_len/(60*len(self.data.wavs)):,.2f} mins per chunk, {total_len / 3600:,.2f} hours")
+            print(f"{len(self.chunk_indices)} chunks, {total_len/(60*len(self.data.wavs)):,.2f} mins per recordings, {total_len / 3600:,.2f} hours")
         else:
             self.rec_list = list(self.chunk_indices.keys())
             print(f"{len(self.rec_list)} recordings, {total_len/(60*len(self.data.wavs)):,.2f} mins per recording, {total_len / 3600:,.2f} hours")
-        #exit(0)
 
+    def clear_history(self):
+        del self.history
+        self.history = []
+        
     def __len__(self):
         return (
             len(self.rec_list)
@@ -137,7 +141,7 @@ class DiarizationDataset(Dataset):
 
     def __getitem__(self, i):
         if self.mode != "test":
-            rec, st, ed = self.chunk_indices[i]
+            rec, st, ed = self.chunk_indices[i]            
             Y, T = self._get_labeled_speech(rec, st, ed, self.n_speakers)
             # TODO: add subsampling here
             return Y, T
@@ -170,9 +174,11 @@ class DiarizationDataset(Dataset):
             T: label
                 (n_frmaes, n_speakers)-shaped np.int32 array.
         """
+        #print('Loading wav', rec, self.frame_shift, start * self.frame_shift, end * self.frame_shift)
         data, rate = self.data.load_wav(
             rec, start * self.frame_shift, end * self.frame_shift
         )
+        #self.history.append((rec, start * self.frame_shift, end * self.frame_shift))
         frame_num = end - start
         filtered_segments = self.data.segments[rec]
         # filtered_segments = self.data.segments[self.data.segments['rec'] == rec]
@@ -182,7 +188,7 @@ class DiarizationDataset(Dataset):
         if n_speakers is None:
             n_speakers = len(speakers)
         T = np.zeros((frame_num, n_speakers), dtype=np.int32)
-
+        
         if use_speaker_id:
             all_speakers = sorted(self.data.spk2utt.keys())
             S = np.zeros((frame_num, len(all_speakers)), dtype=np.int32)
@@ -202,6 +208,8 @@ class DiarizationDataset(Dataset):
                 T[rel_start:rel_end, speaker_index] = 1
                 if use_speaker_id:
                     S[rel_start:rel_end, all_speaker_index] = 1
+
+        #print('label:', len(speakers), np.argmax(T, axis=1), T.shape)
 
         if use_speaker_id:
             return data, T, S
@@ -332,6 +340,10 @@ class KaldiData:
             data, samplerate = sf.read(wav_rxfilename if self.wav_dir is None else os.path.join(self.wav_dir, wav_rxfilename), 
                                        start=start, 
                                        stop=end)
+            #assert len(data) > 0, print('Error loading wav file', 
+            #                           wav_rxfilename if self.wav_dir is None else os.path.join(self.wav_dir, wav_rxfilename), 
+            #                           start, 
+            #                           end)
         return data, samplerate
 
     def _load_utt2spk(self, utt2spk_file):

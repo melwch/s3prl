@@ -253,6 +253,7 @@ class DownstreamExpert(nn.Module):
         )
         features, labels = self._match_length(features, labels)
         predicted = self.model(features)
+        del features
 
         # cause logits are in (batch, seq, class) and labels are in (batch, seq)
         # nn.CrossEntropyLoss expect to have (N, class) and (N,) as input
@@ -273,6 +274,9 @@ class DownstreamExpert(nn.Module):
             speaker_falarm,
             speaker_error,
         ) = calc_diarization_error(predicted, label_perm, lengths)
+        del predicted
+        del labels
+        del lengths
 
         if speech_scored > 0 and speaker_scored > 0 and num_frames > 0:
             SAD_MR, SAD_FR, MI, FA, CF, ACC, DER = (

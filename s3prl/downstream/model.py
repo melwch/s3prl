@@ -125,3 +125,45 @@ class AttentivePoolingModule(nn.Module):
         utter_rep = torch.sum(batch_rep * att_w, dim=1)
 
         return utter_rep, att_w
+
+class StreamlineChannel(nn.Module):
+    def __init__(self, input_dim, mode, verbose=False, **kwargs):
+        super(StreamlineChannel, self).__init__()
+
+        self.mode = mode
+        self.verbose = verbose
+
+        if mode == 'linear':
+            self.process = nn.Linear(input_dim, 1, bias=False)
+        else:
+            self.process = nn.Conv1d(input_dim, 1, kernel_size=1, bias=False)
+
+        if self.verbose:
+            print(f'{mode} layer created')
+
+        self.act = nn.LeakyReLU(0.2, inplace=True)
+
+    def forward(self, wavs):
+        _wavs = []
+        for x in wavs:
+            if self.mode == 'linear':
+                x = x.permute(0, 2, 1)
+            
+            if self.verbose:
+                print('input', x.shape)
+
+            x = self.process(x)
+            x = x.squeeze(-1)
+            x = self.act(x)
+            x = x.squeeze(0)
+
+            if self.mode == 'conv':
+                x = x.squeeze(0)
+
+            if self.verbose:
+                print('preprocess wavs', x.shape)
+                self.verbose = False
+
+            _wavs.append(x)
+
+        return _wavs
