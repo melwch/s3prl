@@ -274,7 +274,6 @@ class DownstreamExpert(nn.Module):
             speaker_falarm,
             speaker_error,
         ) = calc_diarization_error(predicted, label_perm, lengths)
-        del predicted
         del labels
         del lengths
 
@@ -298,6 +297,7 @@ class DownstreamExpert(nn.Module):
 
         if mode == "test" and self.save_predictions:
             predict = predicted.data.cpu().numpy()
+            del predicted
             predict = np.vstack(list(predict))
             predict = 1 / (1 + np.exp(-predict))
             outpath = os.path.join(self.score_dir, "predictions", rec_id + ".h5")
