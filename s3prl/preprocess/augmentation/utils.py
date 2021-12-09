@@ -205,8 +205,9 @@ def download_and_extract_musan(data_root: str):
         
     # Download noise dataset
     file_path = os.path.join(download_musan_noise_dir, data_set + ".tar.gz")
-    logging.info(f"Getting {data_set}")
-    download_file(file_path, URL)
+    if not os.path.exists(file_path):
+        logging.info(f"Getting {data_set}")
+        download_file(file_path, URL)
     logging.info(f"Extracting {data_set}")
     extract_file(file_path, data_root)
     
@@ -228,8 +229,9 @@ def download_and_extract_BUT_Speech(data_root: str):
         os.makedirs(download_rir_dir)
     
     file_path = os.path.join(download_rir_dir, data_set + ".tar.gz")
-    logging.info(f"Getting {data_set}")
-    download_file(file_path, URL)
+    if not os.path.exists(file_path):
+        logging.info(f"Getting {data_set}")
+        download_file(file_path, URL)
     logging.info(f"Extracting {data_set}")
     extract_file(file_path, data_root)
       
@@ -301,8 +303,9 @@ def download_and_extract_RIRS_NOISES(data_root: str):
             os.makedirs(download_rir_dir)
         
         file_path = os.path.join(download_rir_dir, data_set + ".zip")
-        logging.info(f"Getting {data_set}")
-        download_file(file_path, URL)
+        if not os.path.exists(file_path):
+            logging.info(f"Getting {data_set}")
+            download_file(file_path, URL)
         logging.info(f"Extracting {data_set}")
         extract_file(file_path, data_root)
         
