@@ -208,6 +208,8 @@ def download_and_extract_musan(data_root: str):
     if not os.path.exists(file_path):
         logging.info(f"Getting {data_set}")
         download_file(file_path, URL)
+    else:
+        print(f'{file_path} exists, skipped downloading')
     logging.info(f"Extracting {data_set}")
     extract_file(file_path, data_root)
     
@@ -232,6 +234,8 @@ def download_and_extract_BUT_Speech(data_root: str):
     if not os.path.exists(file_path):
         logging.info(f"Getting {data_set}")
         download_file(file_path, URL)
+    else:
+        print(f'{file_path} exists, skipped downloading')
     logging.info(f"Extracting {data_set}")
     extract_file(file_path, data_root)
       
@@ -306,6 +310,8 @@ def download_and_extract_RIRS_NOISES(data_root: str):
         if not os.path.exists(file_path):
             logging.info(f"Getting {data_set}")
             download_file(file_path, URL)
+        else:
+            print(f'{file_path} exists, skipped downloading')
         logging.info(f"Extracting {data_set}")
         extract_file(file_path, data_root)
         
