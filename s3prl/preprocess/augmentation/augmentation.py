@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*- #
+"""*********************************************************************************************"""
+#   FileName     [ augmentation.py ]
+#   Synopsis     [ Data Augmentation Pipeline ]
+#   Source       [ https://github.com/melwch/s3prl/tree/master/s3prl/preprocess/augmentation ]
+#   Author       [ Wong Chee Hoong, Melvin ]
+#   Copyright    [ Copyright(c), Nanyang Technological University ]
+"""*********************************************************************************************"""
+
 def mix_rir_package(destination: str, source: str):
     import os, shutil
 

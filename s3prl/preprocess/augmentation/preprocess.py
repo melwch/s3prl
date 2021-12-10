@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*- #
+"""*********************************************************************************************"""
+#   FileName     [ preprocess.py ]
+#   Synopsis     [ Data Augmentation Pipeline ]
+#   Source       [ https://github.com/melwch/s3prl/tree/master/s3prl/preprocess/augmentation ]
+#   Author       [ Wong Chee Hoong, Melvin ]
+#   Copyright    [ Copyright(c), Nanyang Technological University ]
+"""*********************************************************************************************"""
+
 '''
 Generate a bash script that runs the FFMPEG commands to process the configured audio augmentation pipeline
 '''

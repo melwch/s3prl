@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*- #
+"""*********************************************************************************************"""
+#   FileName     [ utils.py ]
+#   Synopsis     [ Data Augmentation Pipeline ]
+#   Source       [ https://github.com/melwch/s3prl/tree/master/s3prl/preprocess/augmentation ]
+#   Author       [ Wong Chee Hoong, Melvin ]
+#   Copyright    [ Copyright(c), Nanyang Technological University ]
+"""*********************************************************************************************"""
+
 def wada_snr(wav):
     # Direct blind estimation of the SNR of a speech signal.
     #

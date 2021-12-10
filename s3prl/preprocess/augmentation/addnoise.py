@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*- #
+"""*********************************************************************************************"""
+#   FileName     [ addnoise.py ]
+#   Synopsis     [ Data Augmentation Pipeline ]
+#   Source       [ https://github.com/melwch/s3prl/tree/master/s3prl/preprocess/augmentation ]
+#   Author       [ Wong Chee Hoong, Melvin ]
+#   Copyright    [ Copyright(c), Nanyang Technological University ]
+"""*********************************************************************************************"""
+
 def read_audio(src_file, target_sr=None, target_bitrate=None):
     import math
     from pydub import AudioSegment, effects
