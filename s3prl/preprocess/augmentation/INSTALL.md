@@ -1,4 +1,8 @@
 # Prerequisites
+- **Python dependency libraries**
+To install Python dependency libraries that this program needs, locate "requirement.txt" file and run either method:
+- python3 -m pip install -r requirements.txt
+- pip3 install -r requirements.txt
 
 - **FFMPEG**
 For this tool to work, you will need the full suite of FFMPEG encoders and decoders and strongly recommend to install from source. Follow the guide link to install ffmpeg: https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu. 
