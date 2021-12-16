@@ -44,7 +44,7 @@ class DownstreamExpert(nn.Module):
         self.upstream_rate = upstream_rate
         
         self.datarc = downstream_expert["datarc"]
-
+        
         config_frame_shift = self.datarc.get("frame_shift")
         if isinstance(config_frame_shift, int):
             logging.warning(
@@ -218,7 +218,7 @@ class DownstreamExpert(nn.Module):
         return inputs, labels
 
     # Interface
-    def forward(self, mode, features, labels, lengths, rec_id, records, **kwargs):
+    def forward(self, mode, features, labels, lengths, rec_id, records, wavs, preprocess_channel, num_channels, **kwargs):
         """
         Args:
             mode: string
@@ -254,6 +254,15 @@ class DownstreamExpert(nn.Module):
         features, labels = self._match_length(features, labels)
         predicted = self.model(features)
         del features
+
+        if preprocess_channel == 'split':
+            batch_size, time_length, num_of_speakers = predicted.shape
+            predicted = predicted.permute(1, 2, 0).reshape(time_length, num_of_speakers, batch_size // num_channels, num_channels).mean(dim=-1).permute(2, 0, 1)
+            #indices = []
+            #for i in range(0, predicted.shape[0], num_channels):
+            #    predicted[i:i + num_channels] = predicted[i:i + num_channels].permute(1, 2, 0).mean(dim=-1, keepdim=True).expand(-1, -1, num_channels).permute(2, 0, 1)
+            #    indices.append(i)
+            #predicted = predicted[indices]
 
         # cause logits are in (batch, seq, class) and labels are in (batch, seq)
         # nn.CrossEntropyLoss expect to have (N, class) and (N,) as input
@@ -300,7 +309,10 @@ class DownstreamExpert(nn.Module):
             del predicted
             predict = np.vstack(list(predict))
             predict = 1 / (1 + np.exp(-predict))
-            outpath = os.path.join(self.score_dir, "predictions", rec_id + ".h5")
+            outpath_dir = os.path.join(self.score_dir, "predictions")
+            if not os.path.exists(outpath_dir):
+                os.makedirs(outpath_dir)
+            outpath = os.path.join(outpath_dir, rec_id + ".h5")
             with h5py.File(outpath, "w") as wf:
                 wf.create_dataset("T_hat", data=predict)
         return loss

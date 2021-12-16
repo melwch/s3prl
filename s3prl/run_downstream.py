@@ -80,7 +80,7 @@ def get_downstream_args():
 
     # options
     parser.add_argument('--seed', default=1337, type=int)
-    parser.add_argument('-max', '--max_wavs_per_load', default=32, type=int)
+    parser.add_argument('-max', '--max_wavs_per_load', default=16, type=int)
     parser.add_argument('-pmc', '--process_multichannel', default='first', help="Options to preprocess multi-channel audio input "
         '"first": use first channel (DEFAULT), '
         '"mono": convert channels to single channel using mean, '

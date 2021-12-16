@@ -246,10 +246,8 @@ class Runner():
         with open(os.path.join(path, "README.md"), "w") as f:
             f.write(model_card)
 
-    def _preprocess_multichannel(self, wavs, labels=None, lengths=None, device='cpu'):
+    def _preprocess_multichannel(self, wavs, device='cpu'):
         _wavs = []
-        _labels = labels if self.preprocess_multichannel != 'split' else []
-        _lengths = lengths if self.preprocess_multichannel != 'split' else []
         if self.preprocess_multichannel == 'linear' or self.preprocess_multichannel == 'conv':
             if self.preprocess is None:
                 self.preprocess = StreamlineChannel(wavs[0].shape[-1], self.preprocess_multichannel, self.args.verbose)
@@ -270,7 +268,7 @@ class Runner():
                     wavs = [torch.FloatTensor(wav).to(device).permute(1, 0).unsqueeze(0) for wav in wavs]
                     _wavs = self.preprocess(wavs)
         else:
-            for i, wav in enumerate(wavs):
+            for wav in wavs:
                 if len(wav.shape) == 1:
                     _wavs.append(wav)
                 elif self.preprocess_multichannel == 'mono':
@@ -278,30 +276,13 @@ class Runner():
                 elif self.preprocess_multichannel == 'split':
                     for channel in range(wav.shape[-1]):
                         _wavs.append(wav[:, channel])
-                        if labels is not None:
-                            _labels.append(labels[i])
-                        if lengths is not None:
-                            _lengths.append(lengths[i])
                 else:
+                    self.preprocess_multichannel = 'first'
                     _wavs.append(wav[:, 0])
-
-            if labels is not None and lengths is not None and self.preprocess_multichannel == 'split':
-                indices = list(range(len(_labels)))
-                random.shuffle(indices)
-                wavs = []
-                labels = []
-                lengths = []
-                for i in indices:
-                    wavs.append(_wavs[i])
-                    labels.append(_labels[i])
-                    lengths.append(_lengths[i])
-                _wavs = wavs
-                _labels = labels
-                _lengths = lengths
 
             _wavs = [torch.FloatTensor(wav).to(device) for wav in _wavs]
 
-        return _wavs, _labels, _lengths
+        return _wavs
 
     def train(self):
         #print('Arguments:', self.args)
@@ -331,6 +312,9 @@ class Runner():
         if self.config.get('specaug'):
             from .specaug import SpecAug
             specaug = SpecAug(**self.config["specaug"])
+            print('Specaug enabled')
+        else:
+            print('Specaug disabled')
 
         # progress bar
         tqdm_file = sys.stderr if is_leader_process() else open(os.devnull, 'w')
@@ -372,8 +356,9 @@ class Runner():
                         break
                     global_step = pbar.n + 1
                     #print(len(wavs), wavs[0].shape)
+                    num_channels = wavs[0].shape[1]
                     
-                    _wavs, others[0], others[1] = self._preprocess_multichannel(wavs, others[0], others[1], device=self.args.device)
+                    _wavs = self._preprocess_multichannel(wavs, device=self.args.device)
                     #_wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
                     if self.upstream.trainable:
                         features = self.upstream.model(_wavs)
@@ -385,23 +370,28 @@ class Runner():
                     if specaug:
                         features, _ = specaug(features)
 
+                    while len(_wavs) > 0:
+                        del _wavs[0]
+                    _wavs = None
+
                     loss = self.downstream.model(
                         train_split,
                         features, *others,
                         records = records,
                         wavs = wavs,
+                        preprocess_channel = self.preprocess_multichannel,
+                        num_channels = num_channels
                     )
                     batch_ids.append(batch_id)
                     gradient_accumulate_steps = self.config['runner'].get('gradient_accumulate_steps')
+                    assert not torch.isnan(loss).any()
                     (loss / gradient_accumulate_steps).backward()
                     del loss
 
                     while len(features) > 0:
                         del features[0]
-                    while len(_wavs) > 0:
-                        del _wavs[0]
+                    
                     features = None
-                    _wavs = None
                 except RuntimeError as e:
                     if 'CUDA out of memory' in str(e):
                         import traceback
@@ -422,8 +412,9 @@ class Runner():
                     continue
 
                 # gradient clipping
-                grad_norm = torch.nn.utils.clip_grad_norm_(
-                    trainable_paras, self.config['runner']['gradient_clipping'])
+                grad_norm = torch.nn.utils.clip_grad_norm_(trainable_paras, 
+                                                           self.config['runner']['gradient_clipping'], 
+                                                           error_if_nonfinite=True)
 
                 # optimize
                 if math.isnan(grad_norm):
@@ -555,32 +546,37 @@ class Runner():
                 if batch_id > evaluate_steps:
                     break
 
+                num_channels = wavs[0].shape[1]
+
                 #wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
-                wavs, others[0], others[1] = self._preprocess_multichannel(wavs, others[0], others[1], device=self.args.device)
+                _wavs = self._preprocess_multichannel(wavs, device=self.args.device)
                 features = []
-                for i in range(0, len(wavs), batch_size):
+                for i in range(0, len(_wavs), batch_size):
                     try:
-                        _wavs = wavs[i:i + batch_size]
+                        __wavs = _wavs[i:i + batch_size]
                         #_wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs[i:i + batch_size]]
                         #print('sub_wavs', len(_wavs), _wavs[0].shape)
-                        _features = self.upstream.model(_wavs)
-                        _features = self.featurizer.model(_wavs, _features)
+                        _features = self.upstream.model(__wavs)
+                        _features = self.featurizer.model(__wavs, _features)
                         #print('sub_features', len(_features), _features[0].shape)                    
                         features.extend(_features)
                     except:                        
                         import sys, traceback
                         traceback.print_exception(*sys.exc_info())
-                        print(f'sub_wavs ({batch_id}/{i}/{len(wavs)}/{batch_size}):', len(_wavs), _wavs[0].shape, dataloader.dataset.history)
-                        for j, wav in enumerate(_wavs):
+                        print(f'sub_wavs ({batch_id}/{i}/{len(_wavs)}/{batch_size}):', len(__wavs), __wavs[0].shape, dataloader.dataset.history)
+                        for j, wav in enumerate(__wavs):
                             print(f'{j}:', wav.shape)
                         exit(1)
+
                 #print('features', len(features), features[0].shape)
                 self.downstream.model(
                     split,
                     features, *others,
                     records = records,
                     batch_id = batch_id,
-                    wavs = wavs
+                    wavs = wavs,
+                    preprocess_channel = self.preprocess_multichannel,
+                    num_channels = num_channels
                 )
                 del wavs
                 wavs = None
@@ -627,8 +623,8 @@ class Runner():
             wav, sr = torchaudio.load(str(filepath))
             assert sr == SAMPLE_RATE, sr
 
-        *wav, _, _ = self._preprocess_multichannel([wav], device=self.args.device)
-        wavs = [wav.view(-1).to(self.args.device)]
+        wav = self._preprocess_multichannel([wav], device=self.args.device)
+        wavs = [wav[0].view(-1).to(self.args.device)]
 
         for entry in self.all_entries:
             entry.model.eval()
