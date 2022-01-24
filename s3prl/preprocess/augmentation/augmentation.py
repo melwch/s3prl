@@ -362,7 +362,7 @@ def mix_cocktail(src_dir, dest_dir,
         perturbation = None
         if 'perturbation' in scheme:
             mode = scheme['perturbation'].get('mode', None)
-            if mode is not None:
+            if mode is not None and len(mode) > 0:
                 value = random.choice(scheme['perturbation'].get('value', [1.0 if mode == 'tempo' else -1]))
                 if mode == 'tempo':
                     print('perturbation value:', scheme['perturbation']['value'])
