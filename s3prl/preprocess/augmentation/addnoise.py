@@ -167,12 +167,12 @@ def apply_noise_to_speech(source_speech_fn, noise_wav_path, dest_fn=None):
             raise RuntimeError(f"Error running pre-command {precommand}: {str(stderr)}")
         
         if dest_fn is None:
-            command = [f'{get_ffmpeg_exe()}', '-y', '-i', f'"{os.path.abspath(source_speech_fn)}"', '-i', noise_fn, '-filter_complex', f'amix=inputs=2:duration=first:dropout_transition=0', '-c:a', speech_info["codec_name"], '-b:a', f'{math.floor(int(speech_info["bit_rate"])/1000)}k', '-ac', speech_info["channels"], '-ar', speech_info["sample_rate"], '-f', speech_info["format_name"], '-', '| ']
+            command = [f'{get_ffmpeg_exe()}', '-y', '-i', f'"{os.path.abspath(source_speech_fn)}"', '-stream_loop -1', '-i', noise_fn, '-filter_complex', f'amix=inputs=2:duration=first:dropout_transition=0', '-c:a', speech_info["codec_name"], '-b:a', f'{math.floor(int(speech_info["bit_rate"])/1000)}k', '-ac', speech_info["channels"], '-ar', speech_info["sample_rate"], '-f', speech_info["format_name"], '-', '| ']
             return ' '.join(command)
 
         base_dir, temp_fn = os.path.split(dest_fn)
         temp_fn = os.path.join(base_dir, f'noise_temp{os.path.splitext(temp_fn)[1]}')
-        command = [f'{get_ffmpeg_exe()}', '-y', '-i', os.path.abspath(source_speech_fn), '-i', noise_fn, '-filter_complex', f'amix=inputs=2:duration=first:dropout_transition=0', '-c:a', speech_info["codec_name"], '-b:a', f'{min(8.0, math.floor(int(speech_info["bit_rate"])/1000))}k', '-ac', speech_info["channels"], '-ar', speech_info["sample_rate"], '-f', speech_info["format_name"], temp_fn]
+        command = [f'{get_ffmpeg_exe()}', '-y', '-i', os.path.abspath(source_speech_fn), '-stream_loop -1', '-i', noise_fn, '-filter_complex', f'amix=inputs=2:duration=first:dropout_transition=0', '-c:a', speech_info["codec_name"], '-b:a', f'{min(8.0, math.floor(int(speech_info["bit_rate"])/1000))}k', '-ac', speech_info["channels"], '-ar', speech_info["sample_rate"], '-f', speech_info["format_name"], temp_fn]
         
         #command.append(os.path.abspath(dest_fn))
         print(f"Running ffmpeg command: {' '.join(command)}")
