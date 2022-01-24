@@ -1,10 +1,15 @@
+#!/bin/bash +x
+
 clear
 #DATA_DIR="/media/m/F439-FA9D/workshop/callhome/wav"
 #DATA_DIR="/mnt/e/workshop/callhome/callhome_data/data/wav"
 #DEST_DIR="/media/m/F439-FA9D/workshop/callhome/adapt"
 #DATA_DIR="../../../../data_augmentation/sample"
-DATA_DIR="../../../../data_augmentation/wav/target"
-DEST_DIR="../../../../data_augmentation/wav/adapt"
+#DATA_DIR="../../../../data_augmentation/wav/target"
+#DEST_DIR="../../../../data_augmentation/wav/adapt"
+
+DATA_DIR="/mnt/data/speech/aishell4/aishell4/train/wav8K"
+DEST_DIR="/mnt/data/speech/aishell4/aishell4/train"
 
 if [ -f $DEST_DIR ]; then
     rm -rf $DEST_DIR
@@ -22,7 +27,7 @@ if [ -f $log_file ]; then
 fi
 
 #echo "python3 preprocess.py "$DATA_DIR/wav" "$DATA_DIR/adapt" "config.conf" --verbose"
-python3 preprocess.py --verbose "$DATA_DIR" "$DEST_DIR" "config/config.conf"
+python3 preprocess.py -s 1333 --verbose "$DATA_DIR" "$DEST_DIR" "config/config.conf"
 chmod +x make_distorted_wavs.sh
 ./make_distorted_wavs.sh
 #rm make_distorted_wavs.sh

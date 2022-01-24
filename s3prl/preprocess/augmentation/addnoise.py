@@ -219,8 +219,17 @@ if __name__ == "__main__":
     parser.add_argument('noise_file', type=str, help='Noise wav file')
     parser.add_argument('source_file', type=str, help='Source audio wav file')
     parser.add_argument('dest_file', type=str, help='Target audio wav file')
+    parser.add_argument("-s", "--random-state", default=777, type=int, help="set random state", required=False)
     args = parser.parse_args()
     #print('args', args)
+
+    import random
+    import torch
+    import numpy as np
+    print('RANDOM STATE:', args.random_state)
+    torch.manual_seed(args.random_state)
+    random.seed(args.random_state)
+    np.random.seed(args.random_state)
 
     # Voice activity detection
     noise_wav_path = args.noise_file.split(',')

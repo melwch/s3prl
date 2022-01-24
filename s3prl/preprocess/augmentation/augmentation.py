@@ -52,7 +52,7 @@ def valid_noise(wav_fn, src_info, verbose=False):
 
 def add_noise(command, dest_file, src_file, wav_info, info={}, 
               config:dict={ 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 }, 
-              noise_source=None, python_command="python"):
+              noise_source=None, python_command="python", random_state=777):
     from glob import glob
     import random
     import os
@@ -126,7 +126,7 @@ def add_noise(command, dest_file, src_file, wav_info, info={},
         
         
         if python_command is not None:            
-            command += f'\n{python_command} addnoise.py {config["mode"]} "{noise_fns}" "{src_file}" "{dest_file}"\n'
+            command += f'\n{python_command} addnoise.py -s {random_state} {config["mode"]} "{noise_fns}" "{src_file}" "{dest_file}"\n'
         info['snr'] = { 'mode': config['mode'], 'fns': noise_fns }
     
     return command
@@ -308,6 +308,7 @@ def mix_cocktail(src_dir, dest_dir,
                  reverdb_dir="reverdb",
                  noise_dir="noise",
                  python_command="python",
+                 random_state=777,
                  verbose=False):
     from utils import get_audio_info
     from glob import glob
@@ -353,51 +354,54 @@ def mix_cocktail(src_dir, dest_dir,
             command = ""
         
         if 'noise' in scheme and 'A' in scheme['noise']['insert']:
-            command += add_noise(command, path, wav_fn, wav_info, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=None)
+            command += add_noise(command, path, wav_fn, wav_info, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=None, random_state=random_state)
             wav_fn = '-'
             hasFFMPEG = True
 
         output_format = wav_info.format.lower()
         perturbation = None
         if 'perturbation' in scheme:
-            if scheme['perturbation'].get('mode', None) == 'tempo':
-                print('perturbation value:', scheme['perturbation']['value'])
-                speed_perturbation = min(100.0, max(0.5, scheme['perturbation'].get('value', 1.0)))
-                if speed_perturbation != 1.0:
-                    #if verbose:
-                    print("Apply tempo shift:", speed_perturbation)
-                    info[fname]['TEMPO_SHIFT'] = speed_perturbation
-                    
-                    if 'pitch' not in scheme and ('B' in scheme['noise']['insert'] or 'C' in scheme['noise']['insert']):
-                        command += f"ffmpeg -y -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
-                        wav_fn = path
-                    else:
-                        command += f"ffmpeg -y -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
-                        wav_fn = "-"
-                    hasFFMPEG = True
-            elif scheme['perturbation'].get('mode', None) == 'pitch':
-                pitch_perturbation = int(wav_info.samplerate * float(max(8000.0 / wav_info.samplerate, scheme['perturbation'].get('value', -1))))
-                if pitch_perturbation != wav_info.samplerate:
-                    scheme['pitch'] = pitch_perturbation / wav_info.samplerate
-                    tempo_times = ((pitch_perturbation / wav_info.samplerate) % 2) - 1
-                    tempo = min(100.0, max(0.5, 1/scheme['pitch']))
-                    perturbation = f"atempo={tempo}"
-                    if tempo_times > 1:
-                        perturbation += (f",atempo={tempo}" * tempo_times)
+            mode = scheme['perturbation'].get('mode', None)
+            if mode is not None:
+                value = random.choice(scheme['perturbation'].get('value', [1.0 if mode == 'tempo' else -1]))
+                if mode == 'tempo':
+                    print('perturbation value:', scheme['perturbation']['value'])
+                    speed_perturbation = min(100.0, max(0.5, value))
+                    if speed_perturbation != 1.0:
+                        #if verbose:
+                        print("Apply tempo shift:", speed_perturbation)
+                        info[fname]['TEMPO_SHIFT'] = speed_perturbation
+                        
+                        if 'pitch' not in scheme and ('B' in scheme['noise']['insert'] or 'C' in scheme['noise']['insert']):
+                            command += f"ffmpeg -y -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
+                            wav_fn = path
+                        else:
+                            command += f"ffmpeg -y -i \"{wav_fn}\" -af \"atempo={speed_perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
+                            wav_fn = "-"
+                        hasFFMPEG = True
+                elif mode == 'pitch':
+                    pitch_perturbation = int(wav_info.samplerate * float(max(8000.0 / wav_info.samplerate, value)))
+                    if pitch_perturbation != wav_info.samplerate:
+                        scheme['pitch'] = pitch_perturbation / wav_info.samplerate
+                        tempo_times = ((pitch_perturbation / wav_info.samplerate) % 2) - 1
+                        tempo = min(100.0, max(0.5, 1/scheme['pitch']))
+                        perturbation = f"atempo={tempo}"
+                        if tempo_times > 1:
+                            perturbation += (f",atempo={tempo}" * tempo_times)
 
-                    #if verbose:
-                    print("Apply pitch perturbation:", pitch_perturbation)
-                    perturbation = f"asetrate={pitch_perturbation},{perturbation}"
-                    info[fname]['PITCH_SHIFT'] = perturbation
-                    if 'B' in scheme['noise']['insert']:
-                        command += f"ffmpeg -y -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
-                        wav_fn = path
-                    else:
-                        command += f"ffmpeg -y -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
-                        wav_fn = "-"
-                    hasFFMPEG = True
+                        #if verbose:
+                        print("Apply pitch perturbation:", pitch_perturbation)
+                        perturbation = f"asetrate={pitch_perturbation},{perturbation}"
+                        info[fname]['PITCH_SHIFT'] = perturbation
+                        if 'B' in scheme['noise']['insert']:
+                            command += f"ffmpeg -y -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} \"{path}\"\n"
+                            wav_fn = path
+                        else:
+                            command += f"ffmpeg -y -i \"{wav_fn}\" -af \"{perturbation}\" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {wav_info.samplerate} -f {output_format} - | "
+                            wav_fn = "-"
+                        hasFFMPEG = True
         if 'noise' in scheme and 'B' in scheme['noise']['insert']:
-            command = add_noise(command, path, wav_fn, wav_info, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command)
+            command = add_noise(command, path, wav_fn, wav_info, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command, random_state=random_state)
             wav_fn = path
             pickFromFile = True
 
@@ -413,7 +417,7 @@ def mix_cocktail(src_dir, dest_dir,
                 pickFromFile = False
 
         if 'noise' in scheme and 'C' in scheme['noise']['insert']:
-            command = add_noise(command, path, wav_fn, wav_info, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command)
+            command = add_noise(command, path, wav_fn, wav_info, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command, random_state=random_state)
             wav_fn = path
             pickFromFile = True
 
@@ -503,6 +507,7 @@ def augment(dataset, dest_dir,
             python_command="python",
             noise_dir="noise",
             info_fn="cocktail.json",
+            random_state=777,
             verbose=False):
     import os, random
     import json
@@ -560,7 +565,8 @@ def augment(dataset, dest_dir,
                                                    'number of codecs mixture': scheme["number of codecs mixture"]},
                                            reverdb_dir=reverdb_dir,
                                            noise_dir=noise_dir,
-                                           python_command=python_command,                                               
+                                           python_command=python_command,
+                                           random_state=random_state,
                                            verbose=verbose))
     else:
         print("No more files left to process")

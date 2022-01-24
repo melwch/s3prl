@@ -22,7 +22,16 @@ if __name__ == "__main__":
     parser.add_argument("dest", help="destination wave folder")
     parser.add_argument("config", help="configuration file")
     parser.add_argument("-v", "--verbose", default=False, action="store_true", help="show debug info", required=False)
+    parser.add_argument("-s", "--random-state", default=777, type=int, help="set random state", required=False)
     args = parser.parse_args()
+
+    import random
+    import torch
+    import numpy as np
+    print('RANDOM STATE:', args.random_state)
+    torch.manual_seed(args.random_state)
+    random.seed(args.random_state)
+    np.random.seed(args.random_state)
 
     python_command = "python"
     reverdb_dir = "reverdb"
@@ -81,10 +90,10 @@ if __name__ == "__main__":
                         scheme['noise']['mode'] = int(value)
                         assert scheme['noise']['mode'] == 0 or scheme['noise']['mode'] == 1, "Please provide NOISE_APPLICATION_MODE 0 or 1" 
                     elif key == "TEMPO_SHIFT" and scheme['perturbation']['mode'] == "tempo":
-                        scheme['perturbation']['value'] = float(value)
+                        scheme['perturbation']['value'] = [float(v) for v in value.split(',')] if ',' in value else [float(value)]
                         #assert scheme['perturbation']['value'] >= 0.5 and scheme['perturbation']['value'] <= 100.0, "Please provide SPEED_PERTURBATION within the range 0.5 and 100.0"
                     elif key == "PITCH_SHIFT" and scheme['perturbation']['mode'] == "pitch":
-                        scheme['perturbation']['value'] = float(value)
+                        scheme['perturbation']['value'] = [float(v) for v in value.split(',')] if ',' in value else [float(value)]
                     elif key == "PERTURBATION_MODE":
                         if value == "TEMPO_SHIFT":
                             scheme['perturbation']['mode'] = "tempo"
@@ -187,6 +196,7 @@ if __name__ == "__main__":
                    noise_dir=noise_dir,
                    python_command=python_command,
                    info_fn="cocktail.json",
+                   random_state=args.random_state,
                    verbose=args.verbose)
 
     with open(f"make_distorted_wavs.sh", "w+") as f:
