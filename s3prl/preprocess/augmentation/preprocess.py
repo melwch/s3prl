@@ -7,22 +7,56 @@
 #   Copyright    [ Copyright(c), Nanyang Technological University ]
 """*********************************************************************************************"""
 
+def runner(commands):
+    import subprocess
+
+    print(f'Process {os.getpid()} has {len(commands)} commands')
+    for i, command in enumerate(commands):
+        print(f'Process {os.getpid()}: running command ({i+1}/{len(commands)}) "{command}"')
+        p = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,  # Apply stdin isolation by creating separate pipe.
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=False,
+            shell=True
+        )
+
+        # simple running of command
+        stdout, stderr = p.communicate()
+
+        stdout = stdout.decode("utf8", errors="replace")
+        stderr = stderr.decode("utf8", errors="replace")
+
+        print(f'Process {os.getpid()}: {str(stdout)}')
+
+        if p.returncode == 0:
+            print(f'Process {os.getpid()}: Command ({i+1}/{len(commands)}) successfully executed "{command}"')
+        else:
+            print(f"Process {os.getpid()}: RUNNER ERROR: \"{command}\"\n{str(stderr)}")
+
+    print(f'Process {os.getpid()} completed {len(commands)} commands!')
+
 '''
 Generate a bash script that runs the FFMPEG commands to process the configured audio augmentation pipeline
 '''
 if __name__ == "__main__":
     import os, shutil
+    import torch
     import argparse
     from glob import glob
     from augmentation import augment
     from utils import download_and_extract_musan, download_and_extract_BUT_Speech, download_and_extract_RIRS_NOISES
 
+    SEED = torch.initial_seed() % 2**32
+
     parser = argparse.ArgumentParser()
     parser.add_argument("src", help="source wave files")
     parser.add_argument("dest", help="destination wave folder")
     parser.add_argument("config", help="configuration file")
+    parser.add_argument("-p", "--num-procs", default=3, type=int, help="set number of parallel threads", required=False)
     parser.add_argument("-v", "--verbose", default=False, action="store_true", help="show debug info", required=False)
-    parser.add_argument("-s", "--random-state", default=777, type=int, help="set random state", required=False)
+    parser.add_argument("-s", "--random-state", default=SEED, type=int, help="set random state", required=False)
     args = parser.parse_args()
 
     import random
@@ -38,6 +72,8 @@ if __name__ == "__main__":
     noise_dir = "noise"
     distortion_config = "distortion_codecs.conf"
     scheme = { "clean": 0.5,
+               "channel": 0,
+               "target_sample_rate": "8000",
                "normalize": { 'insert': [], 'type': 'ebu', 'level': -23.0, 'loudness': -2.0, 'peak': 2.0, 'offset': 0.0 },
                "noise": { 'mode': 0, 'snr': [25, 20, 15, 5, 0], 'id': 0, 'insert': ['A'], 'ntypes': 1 },
                "perturbation": { "mode" : "tempo", "value": 1. },
@@ -56,6 +92,10 @@ if __name__ == "__main__":
                     if key == "PYTHON_COMMAND":
                         python_command = value
                         assert len(value) > 0, "Please provide the python command to use for generating commands in the script"
+                    elif key == "CHANNEL":
+                        scheme['channel'] = int(value)
+                    elif key == "TARGET_SAMPLE_RATE":
+                        scheme['target_sample_rate'] = value
                     elif key == "NORMALIZE":
                         scheme['normalize']['insert'] = value.split(',')
                     elif key == "NORMALIZE_TYPE":
@@ -81,8 +121,8 @@ if __name__ == "__main__":
                     elif key == "NOISE_ID":
                         scheme['noise']['id'] = value.split(',') if ',' in value else int(value)
                     elif key == "NUM_NOISE_TYPES":
-                        scheme['noise']['ntypes'] = int(value)
-                        assert isinstance(scheme['noise']['id'], (list)) or scheme['noise']['ntypes'] > 0, "Please provide number of types greater than 0"                    
+                        scheme['noise']['ntypes'] = [int(v) for v in (value.split(',') if ',' in value else [value])]
+                        assert isinstance(scheme['noise']['id'], (list)) or all([v > 0 for v in scheme['noise']['ntypes']]), "Please provide number of types greater than 0"                    
                     elif key == "NOISE_DIR":
                         noise_dir = value
                         #assert os.path.exists(noise_dir), "Please provide NOISE_DIR with valid folder location"
@@ -187,6 +227,8 @@ if __name__ == "__main__":
     if os.path.exists(dest_dir):
         shutil.rmtree(dest_dir, ignore_errors=False, onerror=None)
     os.makedirs(dest_dir)
+
+    print("Stage 1: Preprocessing")
     
     src_wavs = glob(os.path.join(src, "*.wav"))
     sets = augment(src_wavs, dest_dir, 
@@ -199,20 +241,52 @@ if __name__ == "__main__":
                    random_state=args.random_state,
                    verbose=args.verbose)
 
-    with open(f"make_distorted_wavs.sh", "w+") as f:
-        f.write("#!/bin/bash -x\n")
+    print("Stage 2: Augmenting")
+
+    if os.path.exists(dest_dir):
+        shutil.rmtree(dest_dir, ignore_errors=True, onerror=None)
+    os.makedirs(dest_dir)
+    
+    batches = {}
+    sets = [batch for batches in sets for batch in batches]
+    for set_id in range(0, len(sets), args.num_procs):
+        for cpu_id in range(args.num_procs):
+            if set_id + cpu_id >= len(sets):
+                break
+            
+            if cpu_id not in batches:
+                batches[cpu_id] = []
+
+            batches[cpu_id].extend(sets[set_id + cpu_id])
+        #break
+
+    from multiprocessing import Process
+
+    processes = []
+    for cpu_id, commands in batches.items():
+        print(cpu_id, len(commands))
+        p = Process(target=runner, args=(commands,))
+        processes.append(p)
+        p.start()
+
+    for p in processes:
+        p.join()
         
-        f.write(f"if [ -f \"{dest_dir}\" ]; then\n")
-        f.write(f"\trm -rf \"{dest_dir}\"\nfi\n")
-        f.write(f"mkdir -p \"{dest_dir}\"\n")
+    print('Data augmentation completed!')
 
-        f.write("\n\n")
-        for commands in sets:
-            for command in commands:
-                f.write(f"{command}\n")
+    #with open(f"make_distorted_wavs.sh", "w+") as f:
+    #    f.write("#!/bin/bash -x\n")
+        
+    #    f.write(f"if [ -f \"{dest_dir}\" ]; then\n")
+    #    f.write(f"\trm -rf \"{dest_dir}\"\nfi\n")
+    #    f.write(f"mkdir -p \"{dest_dir}\"\n")
 
-        f.write("\n\n")
-        f.write("echo \"Completed!\"\n")
+    #    f.write("\n\n")
+    #    for commands in sets:
+    #        for command in commands:
+    #            f.write(f"{command}\n")
 
-    print("Preprocessing completed!\n\n")
+    #    f.write("\n\n")
+    #    f.write("echo \"Completed!\"\n")
+
     print('\n\nCheck out "cocktail.json" for the actual augmentation methods and settings applied on each source audio file\n\n')

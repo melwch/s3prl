@@ -101,6 +101,7 @@ def get_audio_info(wav_fn, verbose=False):
 
     wav_info.codec = codecs[wav_info.subtype_info]
     wav_info.codec_torch = codecs_torch[wav_info.subtype_info]
+    wav_info.format = 'WAV' if wav_info.format == 'WAVEX' else wav_info.format
     
     bitrate_header = "bytes/sec"
     bitrate_header_pos = wav_info.extra_info.lower().index(bitrate_header)
