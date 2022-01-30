@@ -122,7 +122,7 @@ if __name__ == "__main__":
                         scheme['noise']['id'] = value.split(',') if ',' in value else int(value)
                     elif key == "NUM_NOISE_TYPES":
                         scheme['noise']['ntypes'] = [int(v) for v in (value.split(',') if ',' in value else [value])]
-                        assert isinstance(scheme['noise']['id'], (list)) or all([v > 0 for v in scheme['noise']['ntypes']]), "Please provide number of types greater than 0"                    
+                        assert isinstance(scheme['noise']['id'], (list)) or all([v >= 0 for v in scheme['noise']['ntypes']]), "Please provide number of types greater than 0"                    
                     elif key == "NOISE_DIR":
                         noise_dir = value
                         #assert os.path.exists(noise_dir), "Please provide NOISE_DIR with valid folder location"
@@ -223,6 +223,8 @@ if __name__ == "__main__":
         else: 
             scheme_dir += ("_" if len(scheme_dir) > 0 else "") + str(k).replace(" ", "-") + "_" + str(v).replace("/", "-").replace("\\", "-")[:value_limit]
 
+    print("Stage 0: Clean and create directories")
+
     dest_dir = os.path.join(dest, scheme_dir)
     if os.path.exists(dest_dir):
         shutil.rmtree(dest_dir, ignore_errors=False, onerror=None)
@@ -242,10 +244,6 @@ if __name__ == "__main__":
                    verbose=args.verbose)
 
     print("Stage 2: Augmenting")
-
-    if os.path.exists(dest_dir):
-        shutil.rmtree(dest_dir, ignore_errors=True, onerror=None)
-    os.makedirs(dest_dir)
     
     batches = {}
     sets = [batch for batches in sets for batch in batches]

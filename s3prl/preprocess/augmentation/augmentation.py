@@ -78,58 +78,59 @@ def add_noise(command, dest_file, src_file, wav_info, info={},
             num_noise_types = config['ntypes']
     no_long_noise = False
     num_noise_types = random.choice(num_noise_types)
-    print('num_noise_types:', num_noise_types)
-    while noise_wav_path is None or any([not os.path.exists(fn) or (no_id and not no_long_noise and not valid_noise(fn, wav_info)) for fn in noise_wav_path]):
-        try:
-            if isinstance(noise_id, (list)):
-                paths = []
-                for id in noise_id:
-                    fn = list(glob(os.path.join(noise_source, id + '_*.wav')))
-                    if len(fn) > 0:
-                        if os.path.exists(fn[0]):
-                            paths.append(fn[0])
-                        else:
-                            print(f'***ALERT: noise {fn} does not exists')
-                if len(paths) > 0:
-                    noise_wav_path = paths
+    if num_noise_types > 0:
+        print('num_noise_types:', num_noise_types)
+        while noise_wav_path is None or any([not os.path.exists(fn) or (no_id and not no_long_noise and not valid_noise(fn, wav_info)) for fn in noise_wav_path]):
+            try:
+                if isinstance(noise_id, (list)):
+                    paths = []
+                    for id in noise_id:
+                        fn = list(glob(os.path.join(noise_source, id + '_*.wav')))
+                        if len(fn) > 0:
+                            if os.path.exists(fn[0]):
+                                paths.append(fn[0])
+                            else:
+                                print(f'***ALERT: noise {fn} does not exists')
+                    if len(paths) > 0:
+                        noise_wav_path = paths
+                    else:
+                        no_id = True
+                    noise_id = None
+                elif no_id: 
+                    wavs = []               
+                    for wav_fn in glob(os.path.join(noise_source, '*.wav')):
+                        if valid_noise(wav_fn, wav_info):
+                            wavs.append(wav_fn)
+                    no_long_noise = len(wavs) < num_noise_types
+                    if no_long_noise:
+                        wavs = glob(os.path.join(noise_source, '*.wav'))
+                        print(f'****ALERT: source audio length {wav_info.duration} secs > noises, randomly choosing {num_noise_types} from {len(wavs)} noises')                    
+                    noise_wav_path = random.sample(wavs, num_noise_types)
                 else:
-                    no_id = True
-                noise_id = None
-            elif no_id: 
-                wavs = []               
-                for wav_fn in glob(os.path.join(noise_source, '*.wav')):
-                    if valid_noise(wav_fn, wav_info):
-                        wavs.append(wav_fn)
-                no_long_noise = len(wavs) < num_noise_types
-                if no_long_noise:
-                    wavs = glob(os.path.join(noise_source, '*.wav'))
-                    print(f'****ALERT: source audio length {wav_info.duration} secs > noises, randomly choosing {num_noise_types} from {len(wavs)} noises')                    
-                noise_wav_path = random.sample(wavs, num_noise_types)
-            else:
-                noise_wav_path = glob(os.path.join(noise_source, noise_id + '_*.wav'))
-        except:
-            print("Error loading noise", noise_wav_path) # sample again
-            no_id = True
-            noise_wav_path = None
+                    noise_wav_path = glob(os.path.join(noise_source, noise_id + '_*.wav'))
+            except:
+                print("Error loading noise", noise_wav_path) # sample again
+                no_id = True
+                noise_wav_path = None
 
-    if noise_wav_path is None or any([not os.path.exists(fn) for fn in noise_wav_path]):
-        raise FileExistsError("Noise file not found:", noise_wav_path)
-    else: 
-        noise_fns = []
-        for fn in noise_wav_path:
-            SNR = random.sample(snrs, 1)[0]
-            dir, fname = os.path.split(fn)
-            if len(noise_fns) == 0:
-                noise_fns.append(dir)
-            noise_fns.append(f'{fname}@{SNR}')            
-        
-        noise_fns = ",".join(noise_fns)        
-        if python_command is None:
-            from addnoise import apply_noise_to_speech
-            command = apply_noise_to_speech(src_file, noise_wav_path)
-        else:            
-            command = f'{python_command} addnoise.py {config["mode"]} "{noise_fns}" "{src_file}" "{dest_file}"'
-        info['snr'] = { 'mode': config['mode'], 'fns': noise_fns }
+        if noise_wav_path is None or any([not os.path.exists(fn) for fn in noise_wav_path]):
+            raise FileExistsError("Noise file not found:", noise_wav_path)
+        else: 
+            noise_fns = []
+            for fn in noise_wav_path:
+                SNR = random.sample(snrs, 1)[0]
+                dir, fname = os.path.split(fn)
+                if len(noise_fns) == 0:
+                    noise_fns.append(dir)
+                noise_fns.append(f'{fname}@{SNR}')            
+            
+            noise_fns = ",".join(noise_fns)        
+            if python_command is None:
+                from addnoise import apply_noise_to_speech
+                command = apply_noise_to_speech(src_file, noise_wav_path)
+            else:            
+                command = f'{python_command} addnoise.py {config["mode"]} "{noise_fns}" "{src_file}" "{dest_file}"'
+            info['snr'] = { 'mode': config['mode'], 'fns': noise_fns }
 
     return command
 
@@ -348,7 +349,7 @@ def mix_cocktail(src_dir, dest_dir,
         hasFFMPEG = False
         pickFromFile = False
         rm_temps = []
-        if 'channel' in scheme and wav_info.channels > 1:
+        if 'channel' in scheme and scheme['channel'] > -1 and wav_info.channels > 1:
             wav_info.channels = 1
             info[fname]['CHANNEL'] = scheme['channel']
             base_dir, temp_fn = os.path.split(path)
@@ -424,10 +425,11 @@ def mix_cocktail(src_dir, dest_dir,
                         hasFFMPEG = True
         if 'noise' in scheme and 'B' in scheme['noise']['insert']:
             command = add_noise(command, path, wav_fn, wav_info, info[fname], config=scheme['noise'], noise_source=noise_dir, python_command=python_command, random_state=random_state)
-            commands.append(command)
-            command = ''
-            wav_fn = path
-            pickFromFile = True
+            if len(command) > 0:
+                commands.append(command)
+                command = ''
+                wav_fn = path
+                pickFromFile = True
 
         if 'rir' in scheme and scheme['rir'] is not None:
             _hasFFMPEG, command, output_format = add_rir(command, output_format,
@@ -490,14 +492,17 @@ def mix_cocktail(src_dir, dest_dir,
                 saved_to_file = True
 
         if len(command) == 0:
-                dir, fname = os.path.split(path)
-                format = fname.split('.')
-                fname = '_'.join(format[:-1])
-                format = format[-1]
+            dir, fname = os.path.split(path)
+            format = fname.split('.')
+            fname = '_'.join(format[:-1])
+            format = format[-1]
+            if os.path.abspath(wav_fn) != os.path.abspath(os.path.join(dir, fname + "." + format)):
                 #command = f'cp "{wav_fn}" "{os.path.join(dir, fname + "_original." + format)}"'
                 command = f'cp "{wav_fn}" "{os.path.join(dir, fname + "." + format)}"'
                 commands.append(command)
+                command = ''
         elif not saved_to_file:
+        #if not saved_to_file:
             if hasFFMPEG:
                 base_dir, temp_fn = os.path.split(path)
                 temp_fn = os.path.join(base_dir, f'temp-{uuid.uuid4()}{os.path.splitext(temp_fn)[1]}')
@@ -592,17 +597,31 @@ def augment(dataset, dest_dir,
 
     random.shuffle(dataset)
     data_length = len(dataset)
+    print(f'Found {data_length} files')
     end_index = int(data_length * min(1, max(0, scheme["clean"])))
     clean_set = []
-    print(f"Copy {len(clean_set)} clean files")
+    print(f"Copy {end_index} clean files")
     if end_index > 0:
+        import shutil
+        from utils import get_audio_info
+
         for src in dataset[:end_index]:
             fname = os.path.basename(src)
             format = fname.split('.')
             fname = '_'.join(format[:-1])
             format = format[-1]
-            #clean_set.append(f"cp \"{src}\" \"{os.path.join(dest_dir, fname + '_original.' + format)}\"")
-            clean_set.append(f"cp \"{src}\" \"{os.path.join(dest_dir, fname + '.' + format)}\"")
+            wav_info = get_audio_info(src, verbose)
+            dest = os.path.join(dest_dir, fname + "." + format)
+
+            if 'channel' in scheme and scheme['channel'] > -1 and wav_info.channels > 1:
+                wav_info.channels = 1
+                info[fname] = { 'CHANNEL': scheme['channel'] }
+                clean_set.append([f'ffmpeg -y -i "{src}" -af "pan=mono|c0=c{scheme["channel"]}" -c:a {wav_info.codec} -b:a {wav_info.bitrate} -ac {wav_info.channels} -ar {scheme["target_sample_rate"]} -f {wav_info.format} "{dest}"'])
+            else:
+                #clean_set.append(f"cp \"{src}\" \"{os.path.join(dest_dir, fname + '_original.' + format)}\"")
+                clean_set.append([f'cp "{src}" "{dest}"'])
+                #shutil.copyfile(src, os.path.join(dest_dir, fname + "." + format))
+
     if end_index < data_length:
         distorted_sets = []
         distorted_sets.append(mix_cocktail(dataset[end_index:], 
