@@ -47,6 +47,15 @@ def compute_speech_noise_factor(SNR, src_audio, vad_duration, target_noise):
         print('Noise scaling:', scale, 'Noise Power:', noise_power, 'Speech Power:', speech_power, 'snr:', snr, 'SNR:', SNR, 'VAD duration:', vad_duration)
         return scale
 
+def Int2Float(sound):
+    _sound = np.copy(sound)
+    abs_max = np.abs(_sound).max()
+    _sound = _sound.astype('float32')
+    if abs_max > 0:
+        _sound *= 1/abs_max
+    audio_float32 = torch.from_numpy(_sound.squeeze())
+    return audio_float32
+
 def apply_noise_to_speech(source_speech_fn, noise_wav_path, dest_fn=None, tmp_dir=None):
     import shutil
     import uuid
@@ -67,24 +76,42 @@ def apply_noise_to_speech(source_speech_fn, noise_wav_path, dest_fn=None, tmp_di
     #source: https://github.com/snakers4/silero-vad
     model, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad', model='silero_vad', force_reload=False)
 
-    (_, get_speech_ts_adaptive, _, _, _, _, _) = utils
+    #(_, get_speech_ts_adaptive, _, _, _, _, _) = utils
 
-    num_steps = 4 # recommended 4 or 8
-    ms_per_window = 250
+    #num_steps = 4 # recommended 4 or 8
+    #ms_per_window = 250
     #num_samples_per_window = int(sample_rate / 1000 * ms_per_window)
-    num_samples_per_window = int(speech_sig.frame_rate / 1000 * ms_per_window)
-    step = int(num_samples_per_window / num_steps)
+    #num_samples_per_window = int(speech_sig.frame_rate / 1000 * ms_per_window)
+    #step = int(num_samples_per_window / num_steps)
+
+    threshold=0.5
+    min_speech_duration_ms=250
+    min_silence_duration_ms=100
+    window_size_samples=256
+    speech_pad_ms=30
+
+    (get_speech_timestamps, _, _, _, _) = utils
+
+    speech_timestamps = get_speech_timestamps(Int2Float(speech), model,
+                                              threshold=threshold,
+                                              sampling_rate=speech_sig.frame_rate,
+                                              min_speech_duration_ms=min_speech_duration_ms,
+                                              min_silence_duration_ms=min_silence_duration_ms,
+                                              window_size_samples=window_size_samples,
+                                              speech_pad_ms=speech_pad_ms,
+                                              return_seconds=False,
+                                              visualize_probs=False)
     
-    speech_timestamps = get_speech_ts_adaptive(torch.from_numpy(speech), model,
+    #speech_timestamps = get_speech_ts_adaptive(torch.from_numpy(speech), model,
                                             # number of samples in each window, 
                                             # our models were trained using 4000 
                                             # samples (250 ms) per window, so this 
                                             # is preferable value (lesser values 
                                             # reduce quality)
-                                            num_samples_per_window=num_samples_per_window,
+    #                                        num_samples_per_window=num_samples_per_window,
                                             # step size in samples
-                                            step=step, 
-                                            visualize_probs=False)
+    #                                        step=step, 
+    #                                        visualize_probs=False)
 
     total_vad_duration = 0
     if len(speech_timestamps) > 0:
